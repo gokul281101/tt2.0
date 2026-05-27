@@ -8,7 +8,11 @@ import {
   Banknote, Smartphone, Store, ShoppingCart, LayoutDashboard,
   Package, Leaf, ChevronRight, Calendar, Hash, Weight,
   ClipboardList, CheckCircle2, AlertCircle, Pencil, Trash2, History,
+  LogOut, Key,
 } from "lucide-react";
+import Login from "./components/Login";
+import ChangePasswordModal from "./components/ChangePasswordModal";
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TransactionType = "income" | "expense";
@@ -1094,6 +1098,7 @@ function FinanceView({
 }: { shopId: ShopId; transactions: Transaction[]; onAdd: (t: Transaction) => void }) {
   const shop = SHOPS[shopId];
   const [period, setPeriod] = useState<Period>("30d");
+  const [particularDate, setParticularDate] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [formType, setFormType] = useState<TransactionType>("income");
   const [formPayment, setFormPayment] = useState<PaymentMethod>("cash");
@@ -1111,7 +1116,14 @@ function FinanceView({
     return new Date(0);
   }, [period]);
 
-  const filtered = useMemo(() => transactions.filter((t) => t.date >= cutoff), [transactions, cutoff]);
+  const filtered = useMemo(() => {
+    if (particularDate) {
+      const targetDateStr = new Date(particularDate).toDateString();
+      return transactions.filter((t) => t.date.toDateString() === targetDateStr);
+    }
+    return transactions.filter((t) => t.date >= cutoff);
+  }, [transactions, cutoff, particularDate]);
+
   const totalIncome = useMemo(() => filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0), [filtered]);
   const totalExpense = useMemo(() => filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0), [filtered]);
   const balance = totalIncome - totalExpense;
@@ -1123,6 +1135,29 @@ function FinanceView({
   const gpayBalance = gpayIncome - gpayExpense;
 
   const chartData = useMemo(() => {
+    if (particularDate) {
+      // Group by hours of the day
+      const slots = [
+        { label: "Morning (8a-12p)", income: 0, expense: 0 },
+        { label: "Afternoon (12p-4p)", income: 0, expense: 0 },
+        { label: "Evening (4p-8p)", income: 0, expense: 0 },
+        { label: "Night (8p-12a)", income: 0, expense: 0 },
+      ];
+      filtered.forEach((t) => {
+        const hour = t.date.getHours();
+        if (hour >= 8 && hour < 12) {
+          if (t.type === "income") slots[0].income += t.amount; else slots[0].expense += t.amount;
+        } else if (hour >= 12 && hour < 16) {
+          if (t.type === "income") slots[1].income += t.amount; else slots[1].expense += t.amount;
+        } else if (hour >= 16 && hour < 20) {
+          if (t.type === "income") slots[2].income += t.amount; else slots[2].expense += t.amount;
+        } else {
+          if (t.type === "income") slots[3].income += t.amount; else slots[3].expense += t.amount;
+        }
+      });
+      return slots;
+    }
+
     const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
     const map: Record<string, { income: number; expense: number }> = {};
     const now = new Date();
@@ -1142,7 +1177,7 @@ function FinanceView({
       return Object.entries(grouped).map(([label, v]) => ({ label, ...v }));
     }
     return entries;
-  }, [filtered, period]);
+  }, [filtered, period, particularDate]);
 
   const categoryBreakdown = useMemo(() => {
     const map: Record<string, number> = {};
@@ -1164,15 +1199,40 @@ function FinanceView({
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Period:</span>
-          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-            <button key={p} onClick={() => setPeriod(p)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border ${period === p ? "text-white border-transparent shadow-sm" : "bg-card text-foreground border-border"}`}
-              style={period === p ? { backgroundColor: shop.color } : {}}
-            >{PERIOD_LABELS[p]}</button>
-          ))}
+          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => {
+            const isActive = period === p && !particularDate;
+            return (
+              <button key={p} onClick={() => { setPeriod(p); setParticularDate(""); }}
+                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border cursor-pointer ${isActive ? "text-white border-transparent shadow-sm" : "bg-card text-foreground border-border hover:border-border/60"}`}
+                style={isActive ? { backgroundColor: shop.color } : {}}
+              >{PERIOD_LABELS[p]}</button>
+            );
+          })}
+          
+          {/* Particular Day Toggle / Picker */}
+          <div className="flex items-center gap-1.5 bg-card border border-border rounded-full px-3.5 py-1 transition-all hover:border-border/60">
+            <span className="text-xs font-semibold text-muted-foreground select-none">Particular Day:</span>
+            <input 
+              type="date"
+              value={particularDate}
+              onChange={(e) => setParticularDate(e.target.value)}
+              className="bg-transparent text-xs font-bold focus:outline-none cursor-pointer w-28 text-center"
+              style={{ color: shop.color }}
+            />
+            {particularDate && (
+              <button 
+                type="button"
+                onClick={() => setParticularDate("")}
+                className="text-xs text-muted-foreground hover:text-destructive transition-colors ml-1 font-semibold cursor-pointer"
+                title="Clear particular day"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
         <button onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity cursor-pointer"
           style={{ backgroundColor: shop.color }}
         ><Plus size={15} /> Add Entry</button>
       </div>
@@ -1210,23 +1270,47 @@ function FinanceView({
 
       {/* Income / Expense */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex items-center gap-4">
+        <button 
+          onClick={() => setActiveTab(activeTab === "income" ? "all" : "income")}
+          className={`bg-card rounded-2xl p-5 border shadow-sm flex items-center gap-4 text-left cursor-pointer transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] ${
+            activeTab === "income" ? "border-green-600/50 bg-green-50/10 shadow-md" : "border-border hover:border-green-600/20"
+          }`}
+        >
           <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0"><TrendingUp size={18} className="text-green-700" /></div>
-          <div><p className="text-xs text-muted-foreground font-semibold">Total Income</p><p className="text-xl font-bold text-green-700 font-[DM_Mono,monospace]">{fmt(totalIncome)}</p><p className="text-xs text-muted-foreground mt-0.5">{filtered.filter((t) => t.type === "income").length} transactions</p></div>
-        </div>
-        <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex items-center gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
+              Total Income {activeTab === "income" && <span className="w-1.5 h-1.5 rounded-full bg-green-600 animate-ping" />}
+            </p>
+            <p className="text-xl font-bold text-green-700 font-[DM_Mono,monospace]">{fmt(totalIncome)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{filtered.filter((t) => t.type === "income").length} transactions</p>
+          </div>
+        </button>
+        <button 
+          onClick={() => setActiveTab(activeTab === "expense" ? "all" : "expense")}
+          className={`bg-card rounded-2xl p-5 border shadow-sm flex items-center gap-4 text-left cursor-pointer transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] ${
+            activeTab === "expense" ? "border-destructive/50 bg-destructive/5 shadow-md" : "border-border hover:border-destructive/20"
+          }`}
+        >
           <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0"><TrendingDown size={18} className="text-destructive" /></div>
-          <div><p className="text-xs text-muted-foreground font-semibold">Total Expenses</p><p className="text-xl font-bold text-destructive font-[DM_Mono,monospace]">{fmt(totalExpense)}</p><p className="text-xs text-muted-foreground mt-0.5">{filtered.filter((t) => t.type === "expense").length} transactions</p></div>
-        </div>
+          <div>
+            <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
+              Total Expenses {activeTab === "expense" && <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-ping" />}
+            </p>
+            <p className="text-xl font-bold text-destructive font-[DM_Mono,monospace]">{fmt(totalExpense)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{filtered.filter((t) => t.type === "expense").length} transactions</p>
+          </div>
+        </button>
       </div>
 
       {/* Chart */}
       <div className="bg-card rounded-2xl border border-border shadow-sm p-5">
-        <h2 className="text-sm font-bold mb-4">Income vs Expenses — {PERIOD_LABELS[period]}</h2>
+        <h2 className="text-sm font-bold mb-4">
+          Income vs Expenses — {particularDate ? `Particular Day (${new Date(particularDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })})` : PERIOD_LABELS[period]}
+        </h2>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={chartData} barGap={2}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fontFamily: "DM Mono, monospace", fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval={period === "7d" ? 0 : period === "30d" ? 4 : 0} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fontFamily: "DM Mono, monospace", fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval={particularDate ? 0 : (period === "7d" ? 0 : period === "30d" ? 4 : 0)} />
             <YAxis tickFormatter={fmtShort} tick={{ fontSize: 10, fontFamily: "DM Mono, monospace", fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={48} />
             <Tooltip formatter={(v: number, name: string) => [fmt(v), name === "income" ? "Income" : "Expense"]} contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", fontFamily: "DM Mono, monospace", fontSize: 12 }} />
             <Legend formatter={(v) => v === "income" ? "Income" : "Expenses"} wrapperStyle={{ fontSize: 12 }} />
@@ -1350,6 +1434,13 @@ function FinanceView({
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return localStorage.getItem("jsf_logged_in") === "true" || sessionStorage.getItem("jsf_logged_in") === "true";
+  });
+  const [userEmail, setUserEmail] = useState(() => {
+    return localStorage.getItem("jsf_user_email") || sessionStorage.getItem("jsf_user_email") || "";
+  });
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [activeShop, setActiveShop] = useState<ShopId>("shop1");
   const [mainView, setMainView] = useState<MainView>("finance");
   const [shopTransactions, setShopTransactions] = useState<Record<ShopId, Transaction[]>>(INITIAL_TRANSACTIONS);
@@ -1375,10 +1466,30 @@ export default function App() {
     setShopCommitmentPayments((prev) => ({ ...prev, [activeShop]: [p, ...prev[activeShop]] }));
   }
 
+  function handleLogout() {
+    localStorage.removeItem("jsf_logged_in");
+    localStorage.removeItem("jsf_user_email");
+    sessionStorage.removeItem("jsf_logged_in");
+    sessionStorage.removeItem("jsf_user_email");
+    setIsLoggedIn(false);
+    setUserEmail("");
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <Login 
+        onLoginSuccess={(email) => {
+          setIsLoggedIn(true);
+          setUserEmail(email);
+        }} 
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background font-[Plus_Jakarta_Sans,sans-serif]">
       {/* Header */}
-      <header className="px-6 py-4 flex items-center justify-between border-b border-border bg-card shadow-sm">
+      <header className="px-6 py-4 flex items-center justify-between border-b border-border bg-card shadow-sm gap-4 flex-wrap md:flex-nowrap">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ backgroundColor: shop.color + "20" }}>{shop.emoji}</div>
           <div>
@@ -1386,8 +1497,9 @@ export default function App() {
             <p className="text-xs text-muted-foreground">{shop.name}</p>
           </div>
         </div>
+        
         {/* Main nav */}
-        <div className="flex gap-1 bg-muted rounded-xl p-1">
+        <div className="flex gap-1 bg-muted rounded-xl p-1 order-last md:order-none w-full md:w-auto justify-center">
           <button
             onClick={() => setMainView("finance")}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${mainView === "finance" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
@@ -1405,6 +1517,31 @@ export default function App() {
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${mainView === "commitments" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
             <ClipboardList size={14} /> Commitments
+          </button>
+        </div>
+
+        {/* User profile & Logout */}
+        <div className="flex items-center gap-3 ml-auto md:ml-0">
+          <div className="hidden md:flex flex-col items-end text-right">
+            <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider leading-none mb-0.5">Manager</span>
+            <span className="text-xs text-foreground font-semibold font-[DM_Mono,monospace] truncate max-w-[130px]">{userEmail}</span>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs select-none">
+            {userEmail ? userEmail[0].toUpperCase() : "A"}
+          </div>
+          <button
+            onClick={() => setShowChangePassword(true)}
+            title="Change Password"
+            className="flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all active:scale-95 cursor-pointer"
+          >
+            <Key size={16} />
+          </button>
+          <button
+            onClick={handleLogout}
+            title="Log Out"
+            className="flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all active:scale-95 cursor-pointer"
+          >
+            <LogOut size={16} />
           </button>
         </div>
       </header>
@@ -1453,6 +1590,11 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Change Password Modal */}
+      {showChangePassword && (
+        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
+      )}
     </div>
   );
 }
