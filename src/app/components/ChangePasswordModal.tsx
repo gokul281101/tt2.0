@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+  import React, { useState } from "react";
 import { X, Lock, Key, CheckCircle2, AlertCircle } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -19,12 +19,12 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Retrieve password from localStorage or default to 'rajkumar'
+  // Retrieve password from localStorage or default to 'rajkumar' 
   const getStoredPassword = () => {
     return localStorage.getItem("jsf_admin_password") || "rajkumar";
   };
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Clear errors
@@ -32,10 +32,10 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
     setNewError("");
     setConfirmError("");
     setGeneralError("");
-
+    
     const storedPassword = getStoredPassword();
     let hasError = false;
-
+    
     if (!currentPassword) {
       setCurrentError("Current password is required");
       hasError = true;
@@ -43,7 +43,7 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
       setCurrentError("Incorrect current password");
       hasError = true;
     }
-
+    
     if (!newPassword) {
       setNewError("New password is required");
       hasError = true;
@@ -54,7 +54,7 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
       setNewError("New password cannot be the same as current password");
       hasError = true;
     }
-
+    
     if (!confirmPassword) {
       setConfirmError("Please confirm your new password");
       hasError = true;
@@ -62,32 +62,37 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
       setConfirmError("Passwords do not match");
       hasError = true;
     }
-
+    
     if (hasError) return;
-
+    
     setIsLoading(true);
-
-    // Simulate saving...
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // Save new password in localStorage
-      localStorage.setItem("jsf_admin_password", newPassword);
-      setIsSuccess(true);
-
-      // Trigger standard success confetti burst
-      confetti({
-        particleCount: 100,
-        spread: 60,
-        origin: { y: 0.55 },
-        colors: ["#1a7a3c", "#f97316", "#eab308"]
+    try {
+      const response = await fetch("/api/admin/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword })
       });
-
-      // Automatically close modal after 1.5 seconds
-      setTimeout(() => {
-        onClose();
-      }, 1600);
-    }, 1000);
+      if (!response.ok) {
+        const data = await response.json();
+        setGeneralError(data.message || "Failed to update password");
+      } else {
+        localStorage.setItem("jsf_admin_password", newPassword);
+        setIsSuccess(true);
+        confetti({
+          particleCount: 100,
+          spread: 60,
+          origin: { y: 0.55 },
+          colors: ["#1a7a3c", "#f97316", "#eab308"]
+        });
+        setTimeout(() => {
+          onClose();
+        }, 1600);
+      }
+    } catch (err) {
+      setGeneralError("Network error while updating password");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
