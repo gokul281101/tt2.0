@@ -11,6 +11,8 @@ import {
   Boxes, Star, StarOff, BookMarked, CircleAlert, CheckCheck,
   Bell, BellRing, ExternalLink,
 } from "lucide-react";
+import Login from "./components/Login";
+import { api } from "./api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TransactionType = "income" | "expense";
@@ -21,6 +23,7 @@ type MainView = "finance" | "purchases" | "commitments" | "stock";
 type PurchaseCategory = "Fruits & Vegetables" | "Packaging & Plastics" | "Other Supplies";
 type PurchaseUnit = "kg" | "pcs" | "packets" | "liters" | "dozen" | "boxes";
 type StockStatus = "none" | "in-stock" | "wanted";
+type InventoryLevel = "ok" | "low" | "out";
 
 interface Transaction {
   id: string;
@@ -62,8 +65,6 @@ interface CommitmentPayment {
   note: string;
 }
 
-type StockStatus = "ok" | "low" | "out";
-
 interface StockItem {
   id: string;
   name: string;
@@ -78,8 +79,8 @@ interface StockItem {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const SHOPS: Record<ShopId, { name: string; color: string; emoji: string }> = {
-  shop1: { name: "Shop 1 — Koramangala", color: "#1a7a3c", emoji: "🥤" },
-  shop2: { name: "Shop 2 — Indiranagar", color: "#0ea5e9", emoji: "🍹" },
+  shop1: { name: "Shop 1 — Theppakulam", color: "#1a7a3c", emoji: "🥤" },
+  shop2: { name: "Shop 2 — Anuppanandi", color: "#0ea5e9", emoji: "🍹" },
 };
 
 const PERIOD_LABELS: Record<Period, string> = {
@@ -88,18 +89,21 @@ const PERIOD_LABELS: Record<Period, string> = {
 
 const PURCHASE_ITEMS: Record<PurchaseCategory, { name: string; unit: PurchaseUnit; basePrice: number }[]> = {
   "Fruits & Vegetables": [
-    { name: "Watermelon", unit: "kg", basePrice: 18 },
-    { name: "Mango", unit: "kg", basePrice: 90 },
-    { name: "Orange", unit: "kg", basePrice: 55 },
-    { name: "Carrot", unit: "kg", basePrice: 35 },
-    { name: "Ginger", unit: "kg", basePrice: 120 },
-    { name: "Lemon", unit: "kg", basePrice: 80 },
-    { name: "Pineapple", unit: "kg", basePrice: 45 },
-    { name: "Spinach", unit: "kg", basePrice: 30 },
-    { name: "Beetroot", unit: "kg", basePrice: 40 },
-    { name: "Cucumber", unit: "kg", basePrice: 25 },
-    { name: "Coconut", unit: "pcs", basePrice: 30 },
-    { name: "Mint", unit: "kg", basePrice: 60 },
+    { name: "Papaya", unit: "kg", basePrice: 18 },
+    { name: "Watermelon", unit: "kg", basePrice: 90 },
+    { name: "Pineapple", unit: "kg", basePrice: 55 },
+    { name: "Guava", unit: "kg", basePrice: 35 },
+    { name: "Grapes", unit: "kg", basePrice: 120 },
+    { name: "Amla", unit: "kg", basePrice: 80 },
+    { name: "Mosambi", unit: "kg", basePrice: 45 },
+    { name: "Apple", unit: "kg", basePrice: 30 },
+    { name: "Orange", unit: "kg", basePrice: 40 },
+    { name: "Pomegranate", unit: "kg", basePrice: 25 },
+    { name: "Fig fruit", unit: "pcs", basePrice: 30 },
+    { name: "Red Banana", unit: "kg", basePrice: 60 },
+    { name: "Green banana", unit: "kg", basePrice: 120 },
+    { name: "Muskmelon", unit: "kg", basePrice: 100 },
+
   ],
   "Packaging & Plastics": [
     { name: "Plastic Cups 250ml", unit: "packets", basePrice: 120 },
@@ -997,13 +1001,13 @@ function PurchasesView({
 }
 
 // ─── Stock View ──────────────────────────────────────────────────────────────
-function stockStatus(item: StockItem): StockStatus {
+function stockStatus(item: StockItem): InventoryLevel {
   if (item.currentQty <= 0) return "out";
   if (item.currentQty < item.minThreshold) return "low";
   return "ok";
 }
 
-const STATUS_CONFIG: Record<StockStatus, { label: string; bg: string; text: string; border: string }> = {
+const STATUS_CONFIG: Record<InventoryLevel, { label: string; bg: string; text: string; border: string }> = {
   ok:  { label: "In Stock",  bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
   low: { label: "Low",       bg: "#fffbeb", text: "#b45309", border: "#fde68a" },
   out: { label: "Out",       bg: "#fef2f2", text: "#dc2626", border: "#fecaca" },
@@ -2018,26 +2022,20 @@ function FinanceView({
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem("jsf_logged_in") === "true" || sessionStorage.getItem("jsf_logged_in") === "true";
+  });
+  const [userEmail, setUserEmail] = useState<string>(() => {
+    return localStorage.getItem("jsf_user_email") || sessionStorage.getItem("jsf_user_email") || "";
+  });
   const [activeShop, setActiveShop] = useState<ShopId>("shop1");
   const [mainView, setMainView] = useState<MainView>("finance");
   const [shopTransactions, setShopTransactions] = useState<Record<ShopId, Transaction[]>>(INITIAL_TRANSACTIONS);
   const [shopPurchases, setShopPurchases] = useState<Record<ShopId, Purchase[]>>(INITIAL_PURCHASES);
   const [shopCommitments, setShopCommitments] = useState<Record<ShopId, Commitment[]>>(INITIAL_COMMITMENTS);
   const [shopCommitmentPayments, setShopCommitmentPayments] = useState<Record<ShopId, CommitmentPayment[]>>(INITIAL_COMMITMENT_PAYMENTS);
-<<<<<<< HEAD:frontend/src/app/App.tsx
   const [shopStockList, setShopStockList] = useState<Record<ShopId, Record<string, StockStatus>>>({ shop1: {}, shop2: {} });
   const [shopCustomItems, setShopCustomItems] = useState<Record<ShopId, string[]>>({ shop1: [], shop2: [] });
-
-  const shop = SHOPS[activeShop];
-
-  // Compute all wanted items for the global reminder (preset + custom)
-  const allWantedItems = useMemo(() => {
-    const sl = shopStockList[activeShop];
-    const preset = ALL_ITEMS_FLAT.map((i) => i.name).filter((n) => sl[n] === "wanted");
-    const custom = (shopCustomItems[activeShop] || []).filter((n) => sl[n] === "wanted");
-    return [...preset, ...custom];
-  }, [shopStockList, shopCustomItems, activeShop]);
-=======
   const [shopStock, setShopStock] = useState<Record<ShopId, StockItem[]>>(INITIAL_STOCK);
   const [showBell, setShowBell] = useState(false);
   const [dismissedBanner, setDismissedBanner] = useState(false);
@@ -2045,53 +2043,82 @@ export default function App() {
 
   const shop = SHOPS[activeShop];
 
-  // Close bell dropdown on outside click
+  // Load data from backend API
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
-        setShowBell(false);
+    if (!isLoggedIn) return;
+
+    async function loadData() {
+      try {
+        const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+
+        const [txns, purchases, commitmentsData, stock] = await Promise.all([
+          api.getTransactions(activeShop),
+          api.getPurchases(activeShop),
+          api.getCommitments(activeShop, monthKey),
+          api.getStock(activeShop),
+        ]);
+
+        setShopTransactions((prev) => ({ ...prev, [activeShop]: txns }));
+        setShopPurchases((prev) => ({ ...prev, [activeShop]: purchases }));
+        setShopCommitments((prev) => ({ ...prev, [activeShop]: commitmentsData.commitments }));
+        setShopCommitmentPayments((prev) => ({ ...prev, [activeShop]: commitmentsData.payments }));
+        setShopStock((prev) => ({ ...prev, [activeShop]: stock }));
+      } catch (error) {
+        console.error("Error loading backend data:", error);
       }
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
 
-  // Compute reminders across BOTH shops
-  const allReminders = useMemo(() => {
-    const out: { shopId: ShopId; item: StockItem }[] = [];
-    const low: { shopId: ShopId; item: StockItem }[] = [];
-    const wanted: { shopId: ShopId; item: StockItem }[] = [];
-    (Object.keys(SHOPS) as ShopId[]).forEach((sid) => {
-      shopStock[sid].forEach((item) => {
-        const st = stockStatus(item);
-        if (st === "out") out.push({ shopId: sid, item });
-        else if (st === "low") low.push({ shopId: sid, item });
-        if (item.wanted) wanted.push({ shopId: sid, item });
-      });
-    });
-    return { out, low, wanted };
-  }, [shopStock]);
+    loadData();
+  }, [isLoggedIn, activeShop]);
 
-  const totalAlerts = allReminders.out.length + allReminders.low.length + allReminders.wanted.length;
-  const urgentCount = allReminders.out.length;
->>>>>>> bfe00cf02dfdc65887bd9c429cd1632d51211038:src/app/App.tsx
+  async function addTransaction(t: Transaction) {
+    try {
+      const newTx = await api.addTransaction(activeShop, t);
+      setShopTransactions((prev) => ({ ...prev, [activeShop]: [newTx, ...prev[activeShop]] }));
+    } catch (error) {
+      console.error("Failed to add transaction:", error);
+    }
+  }
 
-  function addTransaction(t: Transaction) {
-    setShopTransactions((prev) => ({ ...prev, [activeShop]: [t, ...prev[activeShop]] }));
+  async function addPurchase(p: Purchase) {
+    try {
+      const newP = await api.addPurchase(activeShop, p);
+      setShopPurchases((prev) => ({ ...prev, [activeShop]: [newP, ...prev[activeShop]] }));
+      
+      // Reload stock to reflect inventory adjustments
+      const updatedStock = await api.getStock(activeShop);
+      setShopStock((prev) => ({ ...prev, [activeShop]: updatedStock }));
+    } catch (error) {
+      console.error("Failed to save purchase:", error);
+    }
   }
-  function addPurchase(p: Purchase) {
-    setShopPurchases((prev) => ({ ...prev, [activeShop]: [p, ...prev[activeShop]] }));
+
+  async function addCommitment(c: Commitment) {
+    try {
+      const newC = await api.addCommitment(activeShop, c);
+      setShopCommitments((prev) => ({ ...prev, [activeShop]: [...prev[activeShop], newC] }));
+    } catch (error) {
+      console.error("Failed to add commitment:", error);
+    }
   }
-  function addCommitment(c: Commitment) {
-    setShopCommitments((prev) => ({ ...prev, [activeShop]: [...prev[activeShop], c] }));
+
+  async function deleteCommitment(id: string) {
+    try {
+      await api.deleteCommitment(activeShop, id);
+      setShopCommitments((prev) => ({ ...prev, [activeShop]: prev[activeShop].filter((c) => c.id !== id) }));
+    } catch (error) {
+      console.error("Failed to delete commitment:", error);
+    }
   }
-  function deleteCommitment(id: string) {
-    setShopCommitments((prev) => ({ ...prev, [activeShop]: prev[activeShop].filter((c) => c.id !== id) }));
+
+  async function markCommitmentPaid(p: CommitmentPayment) {
+    try {
+      const newP = await api.payCommitment(activeShop, p.commitmentId, p);
+      setShopCommitmentPayments((prev) => ({ ...prev, [activeShop]: [newP, ...prev[activeShop]] }));
+    } catch (error) {
+      console.error("Failed to pay commitment:", error);
+    }
   }
-  function markCommitmentPaid(p: CommitmentPayment) {
-    setShopCommitmentPayments((prev) => ({ ...prev, [activeShop]: [p, ...prev[activeShop]] }));
-  }
-<<<<<<< HEAD:frontend/src/app/App.tsx
 
   function toggleStockItem(itemName: string) {
     setShopStockList((prev) => {
@@ -2124,15 +2151,104 @@ export default function App() {
   function handleLogout() {
     localStorage.removeItem("jsf_logged_in");
     localStorage.removeItem("jsf_user_email");
+    localStorage.removeItem("jsf_token");
     sessionStorage.removeItem("jsf_logged_in");
     sessionStorage.removeItem("jsf_user_email");
+    sessionStorage.removeItem("jsf_token");
     setIsLoggedIn(false);
     setUserEmail("");
-=======
-  function updateStock(items: StockItem[]) {
-    setShopStock((prev) => ({ ...prev, [activeShop]: items }));
->>>>>>> bfe00cf02dfdc65887bd9c429cd1632d51211038:src/app/App.tsx
   }
+
+  async function updateStock(items: StockItem[]) {
+    const currentList = shopStock[activeShop] || [];
+    
+    // Check if item was added
+    if (items.length > currentList.length) {
+      const addedItem = items.find((i) => !currentList.some((c) => c.id === i.id));
+      if (addedItem) {
+        try {
+          const newS = await api.addStockItem(activeShop, addedItem);
+          setShopStock((prev) => ({ ...prev, [activeShop]: [...prev[activeShop], newS] }));
+        } catch (error) {
+          console.error("Failed to add stock item:", error);
+        }
+      }
+      return;
+    }
+
+    // Check if item was deleted
+    if (items.length < currentList.length) {
+      const deletedItem = currentList.find((c) => !items.some((i) => i.id === c.id));
+      if (deletedItem) {
+        try {
+          await api.deleteStockItem(activeShop, deletedItem.id);
+          setShopStock((prev) => ({ ...prev, [activeShop]: prev[activeShop].filter((s) => s.id !== deletedItem.id) }));
+        } catch (error) {
+          console.error("Failed to delete stock item:", error);
+        }
+      }
+      return;
+    }
+
+    // Check if item was modified
+    const changedItem = items.find((item) => {
+      const original = currentList.find((o) => o.id === item.id);
+      return !original || JSON.stringify(original) !== JSON.stringify(item);
+    });
+
+    if (changedItem) {
+      try {
+        const updated = await api.updateStockItem(activeShop, changedItem.id, changedItem);
+        setShopStock((prev) => ({
+          ...prev,
+          [activeShop]: prev[activeShop].map((s) => s.id === changedItem.id ? updated : s),
+        }));
+      } catch (error) {
+        console.error("Failed to update stock item:", error);
+      }
+    } else {
+      setShopStock((prev) => ({ ...prev, [activeShop]: items }));
+    }
+  }
+
+  // Close bell dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setShowBell(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // Compute all wanted items for the global reminder (preset + custom)
+  const allWantedItems = useMemo(() => {
+    const sl = shopStockList[activeShop];
+    const preset = ALL_ITEMS_FLAT.map((i) => i.name).filter((n) => sl[n] === "wanted");
+    const custom = (shopCustomItems[activeShop] || []).filter((n) => sl[n] === "wanted");
+    return [...preset, ...custom];
+  }, [shopStockList, shopCustomItems, activeShop]);
+
+  // Compute reminders across BOTH shops
+  const allReminders = useMemo(() => {
+    const out: { shopId: ShopId; item: StockItem }[] = [];
+    const low: { shopId: ShopId; item: StockItem }[] = [];
+    const wanted: { shopId: ShopId; item: StockItem }[] = [];
+    (Object.keys(SHOPS) as ShopId[]).forEach((sid) => {
+      shopStock[sid].forEach((item) => {
+        const st = stockStatus(item);
+        if (st === "out") out.push({ shopId: sid, item });
+        else if (st === "low") low.push({ shopId: sid, item });
+        if (item.wanted) wanted.push({ shopId: sid, item });
+      });
+    });
+    return { out, low, wanted };
+  }, [shopStock]);
+
+  const totalAlerts = allReminders.out.length + allReminders.low.length + allReminders.wanted.length;
+  const urgentCount = allReminders.out.length;
+
 
   // Stock counts for the active shop (for tab badge)
   const activeStockAlerts = useMemo(() => {
@@ -2143,6 +2259,10 @@ export default function App() {
       wanted: items.filter((i) => i.wanted).length,
     };
   }, [shopStock, activeShop]);
+
+  if (!isLoggedIn) {
+    return <Login onLoginSuccess={(email) => { setIsLoggedIn(true); setUserEmail(email); }} />;
+  }
 
   return (
     <div className="min-h-screen bg-background font-[Plus_Jakarta_Sans,sans-serif]">
@@ -2383,7 +2503,6 @@ export default function App() {
           <FinanceView shopId={activeShop} transactions={shopTransactions[activeShop]} onAdd={addTransaction} />
         )}
         {mainView === "purchases" && (
-<<<<<<< HEAD:frontend/src/app/App.tsx
           <PurchasesView
             shopId={activeShop}
             purchases={shopPurchases[activeShop]}
@@ -2394,9 +2513,6 @@ export default function App() {
             onAddCustomItem={addCustomStockItem}
             onRemoveCustomItem={removeCustomStockItem}
           />
-=======
-          <PurchasesView shopId={activeShop} purchases={shopPurchases[activeShop]} onAdd={addPurchase} />
->>>>>>> bfe00cf02dfdc65887bd9c429cd1632d51211038:src/app/App.tsx
         )}
         {mainView === "commitments" && (
           <CommitmentsView

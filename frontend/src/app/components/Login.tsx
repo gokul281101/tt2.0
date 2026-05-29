@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Lock, Eye, EyeOff, Sparkles, ArrowRight, AlertCircle, ShieldCheck } from "lucide-react";
 import confetti from "canvas-confetti";
+import { api } from "../api";
 
 interface LoginProps {
   onLoginSuccess: (email: string) => void;
@@ -19,8 +20,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [isSuccess, setIsSuccess] = useState(false);
 
   // Admin access credentials
-  const adminEmail = "admin@juiceshop.com";
-  const adminPassword = localStorage.getItem("jsf_admin_password") || "rajkumar";
+  const adminEmail = "admin@jsfinance.com";
+  const adminPassword = "admin123";
 
   const validatePassword = (val: string) => {
     if (!val) {
@@ -36,7 +37,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     setTimeout(() => setShouldShake(false), 600);
   };
 
-  const handleLogin = (e?: React.FormEvent) => {
+  const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
     const isPassValid = validatePassword(password);
@@ -49,50 +50,45 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     setIsLoading(true);
     setLoginError("");
 
-    // Simulate authenticating admin...
-    setTimeout(() => {
-      if (password === adminPassword) {
-        // Success!
-        setIsLoading(false);
-        setIsSuccess(true);
-        
-        // Trigger a gorgeous confetti burst
-        confetti({
-          particleCount: 120,
-          spread: 80,
-          origin: { y: 0.6 },
-          colors: ["#1a7a3c", "#f97316", "#eab308", "#10b981", "#34d399"]
-        });
-        
-        // Save session state with implicit admin email
-        if (rememberMe) {
-          localStorage.setItem("jsf_logged_in", "true");
-          localStorage.setItem("jsf_user_email", adminEmail);
-        } else {
-          sessionStorage.setItem("jsf_logged_in", "true");
-          sessionStorage.setItem("jsf_user_email", adminEmail);
-        }
+    try {
+      const res = await api.login(password);
+      
+      // Success!
+      setIsLoading(false);
+      setIsSuccess(true);
+      
+      // Trigger confetti burst
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ["#1a7a3c", "#f97316", "#eab308", "#10b981", "#34d399"]
+      });
+      
+      // Save session and token
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem("jsf_logged_in", "true");
+      storage.setItem("jsf_user_email", res.email);
+      storage.setItem("jsf_token", res.token);
 
-        setTimeout(() => {
-          onLoginSuccess(adminEmail);
-        }, 1000);
-      } else {
-        // Invalid admin password
-        setIsLoading(false);
-        setLoginError("Incorrect admin password. Hint: Use the demo code below!");
-        triggerShake();
-      }
-    }, 1200);
+      setTimeout(() => {
+        onLoginSuccess(res.email);
+      }, 1000);
+    } catch (err: any) {
+      setIsLoading(false);
+      setLoginError(err.message || "Incorrect admin password.");
+      triggerShake();
+    }
   };
 
-  const handleQuickFill = () => {
+  const handleQuickFill = async () => {
     setPassword(adminPassword);
     setPasswordError("");
     setLoginError("");
     
-    // Smooth micro-interaction showing the user it auto-submits
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await api.login(adminPassword);
       setIsLoading(false);
       setIsSuccess(true);
       
@@ -103,18 +99,19 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         colors: ["#1a7a3c", "#f97316", "#a3e635", "#3b82f6"]
       });
 
-      if (rememberMe) {
-        localStorage.setItem("jsf_logged_in", "true");
-        localStorage.setItem("jsf_user_email", adminEmail);
-      } else {
-        sessionStorage.setItem("jsf_logged_in", "true");
-        sessionStorage.setItem("jsf_user_email", adminEmail);
-      }
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem("jsf_logged_in", "true");
+      storage.setItem("jsf_user_email", res.email);
+      storage.setItem("jsf_token", res.token);
 
       setTimeout(() => {
-        onLoginSuccess(adminEmail);
+        onLoginSuccess(res.email);
       }, 1000);
-    }, 800);
+    } catch (err: any) {
+      setIsLoading(false);
+      setLoginError(err.message || "Failed to perform Quick Fill login.");
+      triggerShake();
+    }
   };
 
   return (
