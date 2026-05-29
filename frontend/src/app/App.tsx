@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Legend,
@@ -7,19 +7,17 @@ import {
   TrendingUp, TrendingDown, Wallet, Plus, X, ChevronDown,
   Banknote, Smartphone, Store, ShoppingCart, LayoutDashboard,
   Package, Leaf, ChevronRight, Calendar, Hash, Weight,
-  ClipboardList, CheckCircle2, AlertCircle, Pencil, Trash2, History,
-  LogOut, Key,
+  ClipboardList, CheckCircle2, AlertCircle, Trash2, History,
+  Boxes, Star, StarOff, BookMarked, CircleAlert, CheckCheck,
+  Bell, BellRing, ExternalLink,
 } from "lucide-react";
-import Login from "./components/Login";
-import ChangePasswordModal from "./components/ChangePasswordModal";
-
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TransactionType = "income" | "expense";
 type PaymentMethod = "cash" | "gpay";
 type ShopId = "shop1" | "shop2";
 type Period = "7d" | "30d" | "90d" | "all";
-type MainView = "finance" | "purchases" | "commitments";
+type MainView = "finance" | "purchases" | "commitments" | "stock";
 type PurchaseCategory = "Fruits & Vegetables" | "Packaging & Plastics" | "Other Supplies";
 type PurchaseUnit = "kg" | "pcs" | "packets" | "liters" | "dozen" | "boxes";
 type StockStatus = "none" | "in-stock" | "wanted";
@@ -62,6 +60,20 @@ interface CommitmentPayment {
   paymentMethod: PaymentMethod;
   paidDate: Date;
   note: string;
+}
+
+type StockStatus = "ok" | "low" | "out";
+
+interface StockItem {
+  id: string;
+  name: string;
+  category: PurchaseCategory;
+  currentQty: number;
+  unit: PurchaseUnit;
+  minThreshold: number;
+  wanted: boolean;
+  wantedQty: number;
+  wantedNote: string;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -279,6 +291,48 @@ function generateCommitmentPayments(shopId: ShopId, commitments: Commitment[]): 
 const INITIAL_COMMITMENT_PAYMENTS: Record<ShopId, CommitmentPayment[]> = {
   shop1: generateCommitmentPayments("shop1", INITIAL_COMMITMENTS.shop1),
   shop2: generateCommitmentPayments("shop2", INITIAL_COMMITMENTS.shop2),
+};
+
+// ─── Stock Seed Data ──────────────────────────────────────────────────────────
+function buildStockList(seed: number): StockItem[] {
+  const items: StockItem[] = [
+    // Fruits & Vegetables
+    { id: `s${seed}1`,  name: "Watermelon",        category: "Fruits & Vegetables",   currentQty: 12,  unit: "kg",      minThreshold: 10, wanted: false, wantedQty: 20, wantedNote: "" },
+    { id: `s${seed}2`,  name: "Mango",              category: "Fruits & Vegetables",   currentQty: 4,   unit: "kg",      minThreshold: 8,  wanted: true,  wantedQty: 15, wantedNote: "Need before weekend" },
+    { id: `s${seed}3`,  name: "Orange",             category: "Fruits & Vegetables",   currentQty: 8,   unit: "kg",      minThreshold: 5,  wanted: false, wantedQty: 10, wantedNote: "" },
+    { id: `s${seed}4`,  name: "Carrot",             category: "Fruits & Vegetables",   currentQty: 2,   unit: "kg",      minThreshold: 5,  wanted: true,  wantedQty: 8,  wantedNote: "" },
+    { id: `s${seed}5`,  name: "Ginger",             category: "Fruits & Vegetables",   currentQty: 0,   unit: "kg",      minThreshold: 2,  wanted: true,  wantedQty: 3,  wantedNote: "Urgent" },
+    { id: `s${seed}6`,  name: "Lemon",              category: "Fruits & Vegetables",   currentQty: 3,   unit: "kg",      minThreshold: 4,  wanted: true,  wantedQty: 6,  wantedNote: "" },
+    { id: `s${seed}7`,  name: "Pineapple",          category: "Fruits & Vegetables",   currentQty: 5,   unit: "kg",      minThreshold: 4,  wanted: false, wantedQty: 5,  wantedNote: "" },
+    { id: `s${seed}8`,  name: "Spinach",            category: "Fruits & Vegetables",   currentQty: 1,   unit: "kg",      minThreshold: 3,  wanted: true,  wantedQty: 4,  wantedNote: "" },
+    { id: `s${seed}9`,  name: "Beetroot",           category: "Fruits & Vegetables",   currentQty: 6,   unit: "kg",      minThreshold: 3,  wanted: false, wantedQty: 5,  wantedNote: "" },
+    { id: `s${seed}10`, name: "Coconut",            category: "Fruits & Vegetables",   currentQty: 10,  unit: "pcs",     minThreshold: 8,  wanted: false, wantedQty: 20, wantedNote: "" },
+    // Packaging & Plastics
+    { id: `s${seed}11`, name: "Plastic Cups 250ml", category: "Packaging & Plastics", currentQty: 3,   unit: "packets", minThreshold: 5,  wanted: true,  wantedQty: 10, wantedNote: "" },
+    { id: `s${seed}12`, name: "Plastic Cups 500ml", category: "Packaging & Plastics", currentQty: 6,   unit: "packets", minThreshold: 4,  wanted: false, wantedQty: 8,  wantedNote: "" },
+    { id: `s${seed}13`, name: "Paper Straws",       category: "Packaging & Plastics", currentQty: 0,   unit: "packets", minThreshold: 3,  wanted: true,  wantedQty: 5,  wantedNote: "Out of stock" },
+    { id: `s${seed}14`, name: "Carry Bags",         category: "Packaging & Plastics", currentQty: 2,   unit: "packets", minThreshold: 3,  wanted: true,  wantedQty: 6,  wantedNote: "" },
+    { id: `s${seed}15`, name: "Tissue Paper",       category: "Packaging & Plastics", currentQty: 8,   unit: "packets", minThreshold: 4,  wanted: false, wantedQty: 5,  wantedNote: "" },
+    // Other Supplies
+    { id: `s${seed}16`, name: "Sugar",              category: "Other Supplies",        currentQty: 5,   unit: "kg",      minThreshold: 3,  wanted: false, wantedQty: 10, wantedNote: "" },
+    { id: `s${seed}17`, name: "Black Salt",         category: "Other Supplies",        currentQty: 0.5, unit: "kg",      minThreshold: 1,  wanted: true,  wantedQty: 2,  wantedNote: "" },
+    { id: `s${seed}18`, name: "Honey",              category: "Other Supplies",        currentQty: 2,   unit: "kg",      minThreshold: 1,  wanted: false, wantedQty: 2,  wantedNote: "" },
+    { id: `s${seed}19`, name: "Ice",                category: "Other Supplies",        currentQty: 0,   unit: "kg",      minThreshold: 5,  wanted: true,  wantedQty: 20, wantedNote: "Daily need" },
+    { id: `s${seed}20`, name: "Protein Powder",     category: "Other Supplies",        currentQty: 1,   unit: "kg",      minThreshold: 0.5,wanted: false, wantedQty: 2,  wantedNote: "" },
+  ];
+  if (seed === 2) {
+    items[0].currentQty = 8;
+    items[1].currentQty = 10;
+    items[1].wanted = false;
+    items[4].currentQty = 1;
+    items[10].currentQty = 1;
+  }
+  return items;
+}
+
+const INITIAL_STOCK: Record<ShopId, StockItem[]> = {
+  shop1: buildStockList(1),
+  shop2: buildStockList(2),
 };
 
 function mkFromDate(d: Date) {
@@ -942,6 +996,406 @@ function PurchasesView({
   );
 }
 
+// ─── Stock View ──────────────────────────────────────────────────────────────
+function stockStatus(item: StockItem): StockStatus {
+  if (item.currentQty <= 0) return "out";
+  if (item.currentQty < item.minThreshold) return "low";
+  return "ok";
+}
+
+const STATUS_CONFIG: Record<StockStatus, { label: string; bg: string; text: string; border: string }> = {
+  ok:  { label: "In Stock",  bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
+  low: { label: "Low",       bg: "#fffbeb", text: "#b45309", border: "#fde68a" },
+  out: { label: "Out",       bg: "#fef2f2", text: "#dc2626", border: "#fecaca" },
+};
+
+function StockView({
+  shopId, stock, onUpdate,
+}: {
+  shopId: ShopId;
+  stock: StockItem[];
+  onUpdate: (items: StockItem[]) => void;
+}) {
+  const shop = SHOPS[shopId];
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState<PurchaseCategory | "all">("all");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editQtyId, setEditQtyId] = useState<string | null>(null);
+  const [editQtyVal, setEditQtyVal] = useState("");
+  const [editWantedQtyId, setEditWantedQtyId] = useState<string | null>(null);
+  const [editWantedQtyVal, setEditWantedQtyVal] = useState("");
+
+  // Add form
+  const [fName, setFName] = useState("");
+  const [fCat, setFCat] = useState<PurchaseCategory>("Fruits & Vegetables");
+  const [fQty, setFQty] = useState("");
+  const [fUnit, setFUnit] = useState<PurchaseUnit>("kg");
+  const [fMin, setFMin] = useState("");
+
+  function update(id: string, patch: Partial<StockItem>) {
+    onUpdate(stock.map((s) => s.id === id ? { ...s, ...patch } : s));
+  }
+
+  function toggleWanted(id: string) {
+    const item = stock.find((s) => s.id === id)!;
+    update(id, { wanted: !item.wanted });
+  }
+
+  function removeItem(id: string) {
+    onUpdate(stock.filter((s) => s.id !== id));
+  }
+
+  function clearAllWanted() {
+    onUpdate(stock.map((s) => ({ ...s, wanted: false })));
+  }
+
+  function submitAdd() {
+    if (!fName || !fQty) return;
+    const newItem: StockItem = {
+      id: Date.now().toString(),
+      name: fName,
+      category: fCat,
+      currentQty: parseFloat(fQty),
+      unit: fUnit,
+      minThreshold: fMin ? parseFloat(fMin) : 0,
+      wanted: false,
+      wantedQty: 1,
+      wantedNote: "",
+    };
+    onUpdate([...stock, newItem]);
+    setFName(""); setFQty(""); setFMin(""); setShowAddForm(false);
+  }
+
+  const filteredStock = useMemo(() => {
+    return stock.filter((s) => {
+      const matchCat = filterCat === "all" || s.category === filterCat;
+      const matchSearch = s.name.toLowerCase().includes(search.toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [stock, filterCat, search]);
+
+  const byCategory = useMemo(() => {
+    const cats: Record<string, StockItem[]> = {};
+    filteredStock.forEach((s) => {
+      if (!cats[s.category]) cats[s.category] = [];
+      cats[s.category].push(s);
+    });
+    return cats;
+  }, [filteredStock]);
+
+  const wantedItems = useMemo(() => stock.filter((s) => s.wanted), [stock]);
+  const outCount = stock.filter((s) => stockStatus(s) === "out").length;
+  const lowCount = stock.filter((s) => stockStatus(s) === "low").length;
+
+  const CAT_ICONS: Record<string, typeof Leaf> = {
+    "Fruits & Vegetables": Leaf,
+    "Packaging & Plastics": Package,
+    "Other Supplies": ShoppingCart,
+  };
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-5">
+      {/* LEFT: Stock List */}
+      <div className="flex-1 space-y-4">
+        {/* Summary + controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {outCount > 0 && (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold" style={{ backgroundColor: "#fef2f2", color: "#dc2626" }}>
+                <CircleAlert size={12} /> {outCount} Out of stock
+              </span>
+            )}
+            {lowCount > 0 && (
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold" style={{ backgroundColor: "#fffbeb", color: "#b45309" }}>
+                <AlertCircle size={12} /> {lowCount} Low stock
+              </span>
+            )}
+          </div>
+          <button onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: shop.color }}
+          ><Plus size={14} /> Add Item</button>
+        </div>
+
+        {/* Search + filter */}
+        <div className="flex gap-2 flex-wrap">
+          <input
+            type="text" placeholder="Search items…" value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-40 bg-card rounded-xl px-4 py-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <div className="flex gap-1 bg-muted rounded-xl p-1">
+            {(["all", ...Object.keys(PURCHASE_ITEMS)] as (PurchaseCategory | "all")[]).map((cat) => (
+              <button key={cat} onClick={() => setFilterCat(cat)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all capitalize ${filterCat === cat ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"}`}
+              >{cat === "all" ? "All" : cat.split(" ")[0]}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Stock by category */}
+        {Object.entries(byCategory).map(([cat, items]) => {
+          const Icon = CAT_ICONS[cat] || Package;
+          return (
+            <div key={cat} className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-muted/30">
+                <Icon size={14} className="text-muted-foreground" />
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">{cat}</span>
+                <span className="ml-auto text-xs text-muted-foreground">{items.length} items</span>
+              </div>
+              <div className="divide-y divide-border">
+                {items.map((item) => {
+                  const st = stockStatus(item);
+                  const cfg = STATUS_CONFIG[st];
+                  const isEditingQty = editQtyId === item.id;
+                  return (
+                    <div key={item.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors group">
+                      {/* Status dot */}
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.text }} />
+
+                      {/* Name */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{item.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {/* Editable current qty */}
+                          {isEditingQty ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                autoFocus type="number" value={editQtyVal}
+                                onChange={(e) => setEditQtyVal(e.target.value)}
+                                onBlur={() => { if (editQtyVal !== "") update(item.id, { currentQty: parseFloat(editQtyVal) }); setEditQtyId(null); }}
+                                onKeyDown={(e) => { if (e.key === "Enter") { if (editQtyVal !== "") update(item.id, { currentQty: parseFloat(editQtyVal) }); setEditQtyId(null); } }}
+                                className="w-16 bg-input-background rounded-lg px-2 py-0.5 text-xs font-[DM_Mono,monospace] border border-primary focus:outline-none"
+                              />
+                              <span className="text-xs text-muted-foreground">{item.unit}</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setEditQtyId(item.id); setEditQtyVal(String(item.currentQty)); }}
+                              className="text-xs font-[DM_Mono,monospace] font-semibold hover:underline"
+                              style={{ color: cfg.text }}
+                            >
+                              {item.currentQty % 1 === 0 ? item.currentQty : item.currentQty.toFixed(1)} {item.unit}
+                            </button>
+                          )}
+                          <span className="text-muted-foreground/40 text-xs">·</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded-md font-semibold" style={{ backgroundColor: cfg.bg, color: cfg.text }}>
+                            {cfg.label}
+                          </span>
+                          <span className="text-xs text-muted-foreground/60">min {item.minThreshold} {item.unit}</span>
+                        </div>
+                      </div>
+
+                      {/* Wanted toggle */}
+                      <button
+                        onClick={() => toggleWanted(item.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border flex-shrink-0 ${
+                          item.wanted
+                            ? "border-amber-300 text-amber-700 bg-amber-50"
+                            : "border-transparent text-muted-foreground bg-muted hover:border-border"
+                        }`}
+                      >
+                        {item.wanted ? <Star size={12} fill="currentColor" /> : <StarOff size={12} />}
+                        {item.wanted ? "Wanted" : "Want"}
+                      </button>
+
+                      {/* Delete */}
+                      <button onClick={() => removeItem(item.id)}
+                        className="p-1.5 rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-red-50 transition-all">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+
+        {filteredStock.length === 0 && (
+          <div className="text-center py-16 text-muted-foreground">
+            <Boxes size={32} className="mx-auto mb-3 opacity-30" />
+            <p className="text-sm font-medium">No items found.</p>
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT: Wanted List */}
+      <div className="lg:w-72 flex-shrink-0">
+        <div className="bg-card rounded-2xl border border-border shadow-sm sticky top-4">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <div className="flex items-center gap-2">
+              <BookMarked size={15} className="text-amber-600" />
+              <h2 className="text-sm font-bold">Wanted List</h2>
+              {wantedItems.length > 0 && (
+                <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">
+                  {wantedItems.length}
+                </span>
+              )}
+            </div>
+            {wantedItems.length > 0 && (
+              <button onClick={clearAllWanted} className="text-xs text-muted-foreground hover:text-destructive transition-colors font-medium">
+                Clear all
+              </button>
+            )}
+          </div>
+
+          {wantedItems.length === 0 ? (
+            <div className="py-12 text-center px-5">
+              <Star size={28} className="mx-auto mb-3 text-muted-foreground opacity-30" />
+              <p className="text-sm text-muted-foreground font-medium">No items marked as wanted.</p>
+              <p className="text-xs text-muted-foreground mt-1">Click ★ Want on any stock item to add it here.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {wantedItems.map((item) => {
+                const st = stockStatus(item);
+                const cfg = STATUS_CONFIG[st];
+                const isEditingWanted = editWantedQtyId === item.id;
+                return (
+                  <div key={item.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.text }} />
+                          <p className="text-sm font-semibold text-foreground truncate">{item.name}</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 ml-3">
+                          Have: <span className="font-[DM_Mono,monospace] font-semibold" style={{ color: cfg.text }}>
+                            {item.currentQty % 1 === 0 ? item.currentQty : item.currentQty.toFixed(1)} {item.unit}
+                          </span>
+                        </p>
+                      </div>
+                      <button onClick={() => toggleWanted(item.id)} className="text-amber-500 hover:text-muted-foreground transition-colors flex-shrink-0 mt-0.5">
+                        <Star size={14} fill="currentColor" />
+                      </button>
+                    </div>
+
+                    {/* Wanted qty */}
+                    <div className="mt-2 flex items-center gap-2 ml-3">
+                      <span className="text-xs text-muted-foreground">Need:</span>
+                      {isEditingWanted ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            autoFocus type="number" value={editWantedQtyVal}
+                            onChange={(e) => setEditWantedQtyVal(e.target.value)}
+                            onBlur={() => { if (editWantedQtyVal !== "") update(item.id, { wantedQty: parseFloat(editWantedQtyVal) }); setEditWantedQtyId(null); }}
+                            onKeyDown={(e) => { if (e.key === "Enter") { if (editWantedQtyVal !== "") update(item.id, { wantedQty: parseFloat(editWantedQtyVal) }); setEditWantedQtyId(null); } }}
+                            className="w-14 bg-input-background rounded-lg px-2 py-0.5 text-xs font-[DM_Mono,monospace] border border-primary focus:outline-none"
+                          />
+                          <span className="text-xs text-muted-foreground">{item.unit}</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setEditWantedQtyId(item.id); setEditWantedQtyVal(String(item.wantedQty)); }}
+                          className="text-xs font-[DM_Mono,monospace] font-bold text-primary hover:underline"
+                        >
+                          {item.wantedQty} {item.unit}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Note */}
+                    <input
+                      type="text" placeholder="Add note…" value={item.wantedNote}
+                      onChange={(e) => update(item.id, { wantedNote: e.target.value })}
+                      className="mt-2 w-full bg-transparent text-xs text-muted-foreground placeholder:text-muted-foreground/50 border-0 border-b border-dashed border-border focus:outline-none focus:border-primary ml-3"
+                      style={{ width: "calc(100% - 0.75rem)" }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {wantedItems.length > 0 && (
+            <div className="px-5 py-4 border-t border-border">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+                <span className="font-semibold">{wantedItems.length} items to buy</span>
+                <span className="flex items-center gap-1">
+                  <CheckCheck size={12} />
+                  tap ★ to clear
+                </span>
+              </div>
+              <div className="space-y-1">
+                {(Object.keys(PURCHASE_ITEMS) as PurchaseCategory[]).map((cat) => {
+                  const catWanted = wantedItems.filter((i) => i.category === cat);
+                  if (catWanted.length === 0) return null;
+                  const CatIcon = CAT_ICONS[cat] || Package;
+                  const CAT_ICONS2: Record<string, typeof Leaf> = { "Fruits & Vegetables": Leaf, "Packaging & Plastics": Package, "Other Supplies": ShoppingCart };
+                  const CIcon = CAT_ICONS2[cat] || Package;
+                  return (
+                    <div key={cat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <CIcon size={10} /><span>{catWanted.length} {cat.split(" ")[0].toLowerCase()}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Add Stock Item Modal */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h3 className="text-base font-bold">Add Stock Item</h3>
+              <button onClick={() => setShowAddForm(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Category</label>
+                <div className="flex flex-col gap-1.5">
+                  {(Object.keys(PURCHASE_ITEMS) as PurchaseCategory[]).map((cat) => {
+                    const Icon = CAT_ICONS[cat] || Package;
+                    return (
+                      <button key={cat} onClick={() => setFCat(cat)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border text-left transition-all ${fCat === cat ? "bg-primary/10 border-primary/40 text-primary" : "bg-muted border-transparent text-muted-foreground"}`}
+                      ><Icon size={13} />{cat}</button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Item Name</label>
+                <input type="text" placeholder="e.g. Dragon Fruit" value={fName} onChange={(e) => setFName(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Current Qty</label>
+                  <input type="number" placeholder="0" value={fQty} onChange={(e) => setFQty(e.target.value)}
+                    className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
+                </div>
+                <div className="w-28">
+                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Unit</label>
+                  <div className="relative">
+                    <select value={fUnit} onChange={(e) => setFUnit(e.target.value as PurchaseUnit)}
+                      className="w-full bg-input-background rounded-xl px-3 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring appearance-none">
+                      {(["kg", "pcs", "packets", "liters", "dozen", "boxes"] as PurchaseUnit[]).map((u) => <option key={u}>{u}</option>)}
+                    </select>
+                    <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Min Threshold (alert when below)</label>
+                <input type="number" placeholder="e.g. 5" value={fMin} onChange={(e) => setFMin(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+              <button onClick={submitAdd} disabled={!fName || !fQty}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 hover:opacity-90"
+                style={{ backgroundColor: shop.color }}>Add to Stock</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Commitments View ────────────────────────────────────────────────────────
 function CommitmentsView({
   shopId,
@@ -1308,7 +1762,6 @@ function FinanceView({
 }: { shopId: ShopId; transactions: Transaction[]; onAdd: (t: Transaction) => void }) {
   const shop = SHOPS[shopId];
   const [period, setPeriod] = useState<Period>("30d");
-  const [particularDate, setParticularDate] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [formType, setFormType] = useState<TransactionType>("income");
   const [formPayment, setFormPayment] = useState<PaymentMethod>("cash");
@@ -1326,14 +1779,7 @@ function FinanceView({
     return new Date(0);
   }, [period]);
 
-  const filtered = useMemo(() => {
-    if (particularDate) {
-      const targetDateStr = new Date(particularDate).toDateString();
-      return transactions.filter((t) => t.date.toDateString() === targetDateStr);
-    }
-    return transactions.filter((t) => t.date >= cutoff);
-  }, [transactions, cutoff, particularDate]);
-
+  const filtered = useMemo(() => transactions.filter((t) => t.date >= cutoff), [transactions, cutoff]);
   const totalIncome = useMemo(() => filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0), [filtered]);
   const totalExpense = useMemo(() => filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0), [filtered]);
   const balance = totalIncome - totalExpense;
@@ -1345,29 +1791,6 @@ function FinanceView({
   const gpayBalance = gpayIncome - gpayExpense;
 
   const chartData = useMemo(() => {
-    if (particularDate) {
-      // Group by hours of the day
-      const slots = [
-        { label: "Morning (8a-12p)", income: 0, expense: 0 },
-        { label: "Afternoon (12p-4p)", income: 0, expense: 0 },
-        { label: "Evening (4p-8p)", income: 0, expense: 0 },
-        { label: "Night (8p-12a)", income: 0, expense: 0 },
-      ];
-      filtered.forEach((t) => {
-        const hour = t.date.getHours();
-        if (hour >= 8 && hour < 12) {
-          if (t.type === "income") slots[0].income += t.amount; else slots[0].expense += t.amount;
-        } else if (hour >= 12 && hour < 16) {
-          if (t.type === "income") slots[1].income += t.amount; else slots[1].expense += t.amount;
-        } else if (hour >= 16 && hour < 20) {
-          if (t.type === "income") slots[2].income += t.amount; else slots[2].expense += t.amount;
-        } else {
-          if (t.type === "income") slots[3].income += t.amount; else slots[3].expense += t.amount;
-        }
-      });
-      return slots;
-    }
-
     const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
     const map: Record<string, { income: number; expense: number }> = {};
     const now = new Date();
@@ -1387,7 +1810,7 @@ function FinanceView({
       return Object.entries(grouped).map(([label, v]) => ({ label, ...v }));
     }
     return entries;
-  }, [filtered, period, particularDate]);
+  }, [filtered, period]);
 
   const categoryBreakdown = useMemo(() => {
     const map: Record<string, number> = {};
@@ -1409,40 +1832,15 @@ function FinanceView({
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Period:</span>
-          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => {
-            const isActive = period === p && !particularDate;
-            return (
-              <button key={p} onClick={() => { setPeriod(p); setParticularDate(""); }}
-                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border cursor-pointer ${isActive ? "text-white border-transparent shadow-sm" : "bg-card text-foreground border-border hover:border-border/60"}`}
-                style={isActive ? { backgroundColor: shop.color } : {}}
-              >{PERIOD_LABELS[p]}</button>
-            );
-          })}
-          
-          {/* Particular Day Toggle / Picker */}
-          <div className="flex items-center gap-1.5 bg-card border border-border rounded-full px-3.5 py-1 transition-all hover:border-border/60">
-            <span className="text-xs font-semibold text-muted-foreground select-none">Particular Day:</span>
-            <input 
-              type="date"
-              value={particularDate}
-              onChange={(e) => setParticularDate(e.target.value)}
-              className="bg-transparent text-xs font-bold focus:outline-none cursor-pointer w-28 text-center"
-              style={{ color: shop.color }}
-            />
-            {particularDate && (
-              <button 
-                type="button"
-                onClick={() => setParticularDate("")}
-                className="text-xs text-muted-foreground hover:text-destructive transition-colors ml-1 font-semibold cursor-pointer"
-                title="Clear particular day"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
+            <button key={p} onClick={() => setPeriod(p)}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border ${period === p ? "text-white border-transparent shadow-sm" : "bg-card text-foreground border-border"}`}
+              style={period === p ? { backgroundColor: shop.color } : {}}
+            >{PERIOD_LABELS[p]}</button>
+          ))}
         </div>
         <button onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
           style={{ backgroundColor: shop.color }}
         ><Plus size={15} /> Add Entry</button>
       </div>
@@ -1480,47 +1878,23 @@ function FinanceView({
 
       {/* Income / Expense */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <button 
-          onClick={() => setActiveTab(activeTab === "income" ? "all" : "income")}
-          className={`bg-card rounded-2xl p-5 border shadow-sm flex items-center gap-4 text-left cursor-pointer transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] ${
-            activeTab === "income" ? "border-green-600/50 bg-green-50/10 shadow-md" : "border-border hover:border-green-600/20"
-          }`}
-        >
+        <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0"><TrendingUp size={18} className="text-green-700" /></div>
-          <div>
-            <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
-              Total Income {activeTab === "income" && <span className="w-1.5 h-1.5 rounded-full bg-green-600 animate-ping" />}
-            </p>
-            <p className="text-xl font-bold text-green-700 font-[DM_Mono,monospace]">{fmt(totalIncome)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{filtered.filter((t) => t.type === "income").length} transactions</p>
-          </div>
-        </button>
-        <button 
-          onClick={() => setActiveTab(activeTab === "expense" ? "all" : "expense")}
-          className={`bg-card rounded-2xl p-5 border shadow-sm flex items-center gap-4 text-left cursor-pointer transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] ${
-            activeTab === "expense" ? "border-destructive/50 bg-destructive/5 shadow-md" : "border-border hover:border-destructive/20"
-          }`}
-        >
+          <div><p className="text-xs text-muted-foreground font-semibold">Total Income</p><p className="text-xl font-bold text-green-700 font-[DM_Mono,monospace]">{fmt(totalIncome)}</p><p className="text-xs text-muted-foreground mt-0.5">{filtered.filter((t) => t.type === "income").length} transactions</p></div>
+        </div>
+        <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0"><TrendingDown size={18} className="text-destructive" /></div>
-          <div>
-            <p className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
-              Total Expenses {activeTab === "expense" && <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-ping" />}
-            </p>
-            <p className="text-xl font-bold text-destructive font-[DM_Mono,monospace]">{fmt(totalExpense)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{filtered.filter((t) => t.type === "expense").length} transactions</p>
-          </div>
-        </button>
+          <div><p className="text-xs text-muted-foreground font-semibold">Total Expenses</p><p className="text-xl font-bold text-destructive font-[DM_Mono,monospace]">{fmt(totalExpense)}</p><p className="text-xs text-muted-foreground mt-0.5">{filtered.filter((t) => t.type === "expense").length} transactions</p></div>
+        </div>
       </div>
 
       {/* Chart */}
       <div className="bg-card rounded-2xl border border-border shadow-sm p-5">
-        <h2 className="text-sm font-bold mb-4">
-          Income vs Expenses — {particularDate ? `Particular Day (${new Date(particularDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })})` : PERIOD_LABELS[period]}
-        </h2>
-        <ResponsiveContainer width="100%" height={200}>
+        <h2 className="text-sm font-bold mb-4">Income vs Expenses — {PERIOD_LABELS[period]}</h2>
+        <ResponsiveContainer key={period} width="100%" height={200}>
           <BarChart data={chartData} barGap={2}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fontFamily: "DM Mono, monospace", fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval={particularDate ? 0 : (period === "7d" ? 0 : period === "30d" ? 4 : 0)} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fontFamily: "DM Mono, monospace", fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval={period === "7d" ? 0 : period === "30d" ? 4 : 0} />
             <YAxis tickFormatter={fmtShort} tick={{ fontSize: 10, fontFamily: "DM Mono, monospace", fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={48} />
             <Tooltip formatter={(v: number, name: string) => [fmt(v), name === "income" ? "Income" : "Expense"]} contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", fontFamily: "DM Mono, monospace", fontSize: 12 }} />
             <Legend formatter={(v) => v === "income" ? "Income" : "Expenses"} wrapperStyle={{ fontSize: 12 }} />
@@ -1644,19 +2018,13 @@ function FinanceView({
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return localStorage.getItem("jsf_logged_in") === "true" || sessionStorage.getItem("jsf_logged_in") === "true";
-  });
-  const [userEmail, setUserEmail] = useState(() => {
-    return localStorage.getItem("jsf_user_email") || sessionStorage.getItem("jsf_user_email") || "";
-  });
-  const [showChangePassword, setShowChangePassword] = useState(false);
   const [activeShop, setActiveShop] = useState<ShopId>("shop1");
   const [mainView, setMainView] = useState<MainView>("finance");
   const [shopTransactions, setShopTransactions] = useState<Record<ShopId, Transaction[]>>(INITIAL_TRANSACTIONS);
   const [shopPurchases, setShopPurchases] = useState<Record<ShopId, Purchase[]>>(INITIAL_PURCHASES);
   const [shopCommitments, setShopCommitments] = useState<Record<ShopId, Commitment[]>>(INITIAL_COMMITMENTS);
   const [shopCommitmentPayments, setShopCommitmentPayments] = useState<Record<ShopId, CommitmentPayment[]>>(INITIAL_COMMITMENT_PAYMENTS);
+<<<<<<< HEAD:frontend/src/app/App.tsx
   const [shopStockList, setShopStockList] = useState<Record<ShopId, Record<string, StockStatus>>>({ shop1: {}, shop2: {} });
   const [shopCustomItems, setShopCustomItems] = useState<Record<ShopId, string[]>>({ shop1: [], shop2: [] });
 
@@ -1669,6 +2037,44 @@ export default function App() {
     const custom = (shopCustomItems[activeShop] || []).filter((n) => sl[n] === "wanted");
     return [...preset, ...custom];
   }, [shopStockList, shopCustomItems, activeShop]);
+=======
+  const [shopStock, setShopStock] = useState<Record<ShopId, StockItem[]>>(INITIAL_STOCK);
+  const [showBell, setShowBell] = useState(false);
+  const [dismissedBanner, setDismissedBanner] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  const shop = SHOPS[activeShop];
+
+  // Close bell dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setShowBell(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // Compute reminders across BOTH shops
+  const allReminders = useMemo(() => {
+    const out: { shopId: ShopId; item: StockItem }[] = [];
+    const low: { shopId: ShopId; item: StockItem }[] = [];
+    const wanted: { shopId: ShopId; item: StockItem }[] = [];
+    (Object.keys(SHOPS) as ShopId[]).forEach((sid) => {
+      shopStock[sid].forEach((item) => {
+        const st = stockStatus(item);
+        if (st === "out") out.push({ shopId: sid, item });
+        else if (st === "low") low.push({ shopId: sid, item });
+        if (item.wanted) wanted.push({ shopId: sid, item });
+      });
+    });
+    return { out, low, wanted };
+  }, [shopStock]);
+
+  const totalAlerts = allReminders.out.length + allReminders.low.length + allReminders.wanted.length;
+  const urgentCount = allReminders.out.length;
+>>>>>>> bfe00cf02dfdc65887bd9c429cd1632d51211038:src/app/App.tsx
 
   function addTransaction(t: Transaction) {
     setShopTransactions((prev) => ({ ...prev, [activeShop]: [t, ...prev[activeShop]] }));
@@ -1685,6 +2091,7 @@ export default function App() {
   function markCommitmentPaid(p: CommitmentPayment) {
     setShopCommitmentPayments((prev) => ({ ...prev, [activeShop]: [p, ...prev[activeShop]] }));
   }
+<<<<<<< HEAD:frontend/src/app/App.tsx
 
   function toggleStockItem(itemName: string) {
     setShopStockList((prev) => {
@@ -1721,78 +2128,189 @@ export default function App() {
     sessionStorage.removeItem("jsf_user_email");
     setIsLoggedIn(false);
     setUserEmail("");
+=======
+  function updateStock(items: StockItem[]) {
+    setShopStock((prev) => ({ ...prev, [activeShop]: items }));
+>>>>>>> bfe00cf02dfdc65887bd9c429cd1632d51211038:src/app/App.tsx
   }
 
-  if (!isLoggedIn) {
-    return (
-      <Login 
-        onLoginSuccess={(email) => {
-          setIsLoggedIn(true);
-          setUserEmail(email);
-        }} 
-      />
-    );
-  }
+  // Stock counts for the active shop (for tab badge)
+  const activeStockAlerts = useMemo(() => {
+    const items = shopStock[activeShop];
+    return {
+      out: items.filter((i) => stockStatus(i) === "out").length,
+      low: items.filter((i) => stockStatus(i) === "low").length,
+      wanted: items.filter((i) => i.wanted).length,
+    };
+  }, [shopStock, activeShop]);
 
   return (
     <div className="min-h-screen bg-background font-[Plus_Jakarta_Sans,sans-serif]">
       {/* Header */}
-      <header className="px-6 py-4 flex items-center justify-between border-b border-border bg-card shadow-sm gap-4 flex-wrap md:flex-nowrap">
-        <div className="flex items-center gap-3">
+      <header className="px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-border bg-card shadow-sm gap-3">
+        <div className="flex items-center gap-2.5 flex-shrink-0">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ backgroundColor: shop.color + "20" }}>{shop.emoji}</div>
-          <div>
+          <div className="hidden sm:block">
             <h1 className="text-base font-bold leading-tight">JuiceShop Finance</h1>
             <p className="text-xs text-muted-foreground">{shop.name}</p>
           </div>
         </div>
-        
+
         {/* Main nav */}
-        <div className="flex gap-1 bg-muted rounded-xl p-1 order-last md:order-none w-full md:w-auto justify-center">
-          <button
-            onClick={() => setMainView("finance")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${mainView === "finance" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            <LayoutDashboard size={14} /> Finance
+        <div className="flex gap-1 bg-muted rounded-xl p-1 overflow-x-auto flex-shrink-0">
+          <button onClick={() => setMainView("finance")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${mainView === "finance" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            <LayoutDashboard size={13} /> Finance
           </button>
-          <button
-            onClick={() => setMainView("purchases")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${mainView === "purchases" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            <ShoppingCart size={14} /> Purchases
+          <button onClick={() => setMainView("purchases")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${mainView === "purchases" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            <ShoppingCart size={13} /> Purchases
           </button>
-          <button
-            onClick={() => setMainView("commitments")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${mainView === "commitments" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            <ClipboardList size={14} /> Commitments
+          <button onClick={() => setMainView("commitments")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${mainView === "commitments" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            <ClipboardList size={13} /> Commitments
+          </button>
+          <button onClick={() => setMainView("stock")}
+            className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${mainView === "stock" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            <Boxes size={13} /> Stock
+            {(activeStockAlerts.out + activeStockAlerts.low) > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center">
+                {activeStockAlerts.out + activeStockAlerts.low}
+              </span>
+            )}
           </button>
         </div>
 
-        {/* User profile & Logout */}
-        <div className="flex items-center gap-3 ml-auto md:ml-0">
-          <div className="hidden md:flex flex-col items-end text-right">
-            <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider leading-none mb-0.5">Manager</span>
-            <span className="text-xs text-foreground font-semibold font-[DM_Mono,monospace] truncate max-w-[130px]">{userEmail}</span>
-          </div>
-          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs select-none">
-            {userEmail ? userEmail[0].toUpperCase() : "A"}
-          </div>
+        {/* Bell */}
+        <div className="relative flex-shrink-0" ref={bellRef}>
           <button
-            onClick={() => setShowChangePassword(true)}
-            title="Change Password"
-            className="flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all active:scale-95 cursor-pointer"
+            onClick={() => setShowBell((v) => !v)}
+            className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${showBell ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground hover:text-foreground"}`}
           >
-            <Key size={16} />
+            {totalAlerts > 0 ? <BellRing size={17} /> : <Bell size={17} />}
+            {totalAlerts > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-white text-[10px] font-bold flex items-center justify-center">
+                {totalAlerts}
+              </span>
+            )}
           </button>
-          <button
-            onClick={handleLogout}
-            title="Log Out"
-            className="flex items-center justify-center p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all active:scale-95 cursor-pointer"
-          >
-            <LogOut size={16} />
-          </button>
+
+          {/* Bell Dropdown */}
+          {showBell && (
+            <div className="absolute right-0 top-12 w-80 bg-card border border-border rounded-2xl shadow-2xl z-50 overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                <p className="text-sm font-bold">Stock Reminders</p>
+                <span className="text-xs text-muted-foreground">{totalAlerts} alerts</span>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto">
+                {totalAlerts === 0 && (
+                  <div className="py-10 text-center text-muted-foreground">
+                    <CheckCircle2 size={28} className="mx-auto mb-2 text-green-500" />
+                    <p className="text-sm font-medium">All stocked up!</p>
+                    <p className="text-xs mt-1">No reminders right now.</p>
+                  </div>
+                )}
+
+                {/* Out of Stock */}
+                {allReminders.out.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border-b border-red-100">
+                      <CircleAlert size={13} className="text-destructive" />
+                      <span className="text-xs font-bold text-destructive uppercase tracking-wide">Out of Stock</span>
+                      <span className="ml-auto text-xs font-bold text-destructive">{allReminders.out.length}</span>
+                    </div>
+                    {allReminders.out.map(({ shopId, item }) => (
+                      <div key={`out-${shopId}-${item.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 border-b border-border/50">
+                        <div className="w-2 h-2 rounded-full bg-destructive flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">{SHOPS[shopId].emoji} {SHOPS[shopId].name.split("—")[0].trim()}</p>
+                        </div>
+                        <span className="text-xs font-bold text-destructive font-[DM_Mono,monospace]">0 {item.unit}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Low Stock */}
+                {allReminders.low.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-100">
+                      <AlertCircle size={13} className="text-amber-600" />
+                      <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">Low Stock</span>
+                      <span className="ml-auto text-xs font-bold text-amber-700">{allReminders.low.length}</span>
+                    </div>
+                    {allReminders.low.map(({ shopId, item }) => (
+                      <div key={`low-${shopId}-${item.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 border-b border-border/50">
+                        <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">{SHOPS[shopId].emoji} {SHOPS[shopId].name.split("—")[0].trim()}</p>
+                        </div>
+                        <span className="text-xs font-bold text-amber-700 font-[DM_Mono,monospace]">
+                          {item.currentQty % 1 === 0 ? item.currentQty : item.currentQty.toFixed(1)} {item.unit}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Wanted */}
+                {allReminders.wanted.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-amber-50/50 border-b border-amber-100/50">
+                      <Star size={13} className="text-amber-500" fill="currentColor" />
+                      <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">Wanted to Buy</span>
+                      <span className="ml-auto text-xs font-bold text-amber-600">{allReminders.wanted.length}</span>
+                    </div>
+                    {allReminders.wanted.map(({ shopId, item }) => (
+                      <div key={`want-${shopId}-${item.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 border-b border-border/50">
+                        <Star size={12} className="text-amber-400 flex-shrink-0" fill="currentColor" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{item.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs text-muted-foreground">{SHOPS[shopId].emoji} {SHOPS[shopId].name.split("—")[0].trim()}</p>
+                            {item.wantedNote && <><span className="text-muted-foreground/40">·</span><p className="text-xs text-muted-foreground truncate">{item.wantedNote}</p></>}
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold text-primary font-[DM_Mono,monospace]">
+                          {item.wantedQty} {item.unit}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="px-4 py-3 border-t border-border">
+                <button
+                  onClick={() => { setMainView("stock"); setShowBell(false); }}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                >
+                  <ExternalLink size={12} /> Go to Stock List
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </header>
+
+      {/* Urgent Banner */}
+      {urgentCount > 0 && !dismissedBanner && (
+        <div className="bg-destructive text-white px-4 py-2.5 flex items-center gap-3">
+          <CircleAlert size={15} className="flex-shrink-0" />
+          <p className="text-sm font-semibold flex-1">
+            {urgentCount} item{urgentCount > 1 ? "s are" : " is"} out of stock across your shops —{" "}
+            <button onClick={() => { setMainView("stock"); setDismissedBanner(true); }} className="underline underline-offset-2 hover:opacity-80">
+              check stock list
+            </button>
+          </p>
+          <button onClick={() => setDismissedBanner(true)} className="text-white/70 hover:text-white transition-colors flex-shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Shop Tabs */}
       <div className="bg-card border-b border-border px-6">
@@ -1800,12 +2318,16 @@ export default function App() {
           {(Object.keys(SHOPS) as ShopId[]).map((sid) => {
             const s = SHOPS[sid];
             const isActive = sid === activeShop;
+            const shopOut = shopStock[sid].filter((i) => stockStatus(i) === "out").length;
             return (
               <button key={sid} onClick={() => setActiveShop(sid)}
                 className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 transition-all ${isActive ? "border-current" : "border-transparent text-muted-foreground hover:text-foreground"}`}
                 style={isActive ? { color: s.color, borderColor: s.color } : {}}
               >
                 <Store size={14} />{s.name}
+                {shopOut > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center">{shopOut}</span>
+                )}
               </button>
             );
           })}
@@ -1858,13 +2380,10 @@ export default function App() {
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         {mainView === "finance" && (
-          <FinanceView
-            shopId={activeShop}
-            transactions={shopTransactions[activeShop]}
-            onAdd={addTransaction}
-          />
+          <FinanceView shopId={activeShop} transactions={shopTransactions[activeShop]} onAdd={addTransaction} />
         )}
         {mainView === "purchases" && (
+<<<<<<< HEAD:frontend/src/app/App.tsx
           <PurchasesView
             shopId={activeShop}
             purchases={shopPurchases[activeShop]}
@@ -1875,6 +2394,9 @@ export default function App() {
             onAddCustomItem={addCustomStockItem}
             onRemoveCustomItem={removeCustomStockItem}
           />
+=======
+          <PurchasesView shopId={activeShop} purchases={shopPurchases[activeShop]} onAdd={addPurchase} />
+>>>>>>> bfe00cf02dfdc65887bd9c429cd1632d51211038:src/app/App.tsx
         )}
         {mainView === "commitments" && (
           <CommitmentsView
@@ -1886,12 +2408,10 @@ export default function App() {
             onMarkPaid={markCommitmentPaid}
           />
         )}
+        {mainView === "stock" && (
+          <StockView shopId={activeShop} stock={shopStock[activeShop]} onUpdate={updateStock} />
+        )}
       </main>
-
-      {/* Change Password Modal */}
-      {showChangePassword && (
-        <ChangePasswordModal onClose={() => setShowChangePassword(false)} />
-      )}
     </div>
   );
 }
