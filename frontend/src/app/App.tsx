@@ -10,22 +10,23 @@ import {
   ClipboardList, CheckCircle2, AlertCircle, Trash2, History,
   Boxes, Star, StarOff, BookMarked, CircleAlert, CheckCheck,
   Bell, BellRing, ExternalLink,
+  IceCream, Nut, Sparkles, Droplet,
 } from "lucide-react";
 import Login from "./components/Login";
 import { api } from "./api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type TransactionType = "income" | "expense";
-type PaymentMethod = "cash" | "gpay";
-type ShopId = "shop1" | "shop2";
-type Period = "7d" | "30d" | "90d" | "all";
-type MainView = "finance" | "purchases" | "commitments" | "stock";
-type PurchaseCategory = "Fruits & Vegetables" | "Packaging & Plastics" | "Other Supplies";
-type PurchaseUnit = "kg" | "pcs" | "packets" | "liters" | "dozen" | "boxes";
-type StockStatus = "none" | "in-stock" | "wanted";
-type InventoryLevel = "ok" | "low" | "out";
+export type TransactionType = "income" | "expense";
+export type PaymentMethod = "cash" | "gpay";
+export type ShopId = "shop1" | "shop2";
+export type Period = "7d" | "30d" | "90d" | "all";
+export type MainView = "finance" | "purchases" | "commitments" | "stock";
+export type PurchaseCategory = "Fruits & Vegetables" | "Packaging & Plastics" | "Other Supplies" | "Ice Cream" | "Dry Fruits" | "Cleaning Utility" | "Essence";
+export type PurchaseUnit = "kg" | "pcs" | "packets" | "liters" | "dozen" | "boxes";
+export type StockStatus = "none" | "in-stock" | "wanted";
+export type InventoryLevel = "ok" | "low" | "out";
 
-interface Transaction {
+export interface Transaction {
   id: string;
   type: TransactionType;
   paymentMethod: PaymentMethod;
@@ -35,7 +36,7 @@ interface Transaction {
   date: Date;
 }
 
-interface Purchase {
+export interface Purchase {
   id: string;
   itemName: string;
   category: PurchaseCategory;
@@ -46,7 +47,7 @@ interface Purchase {
   date: Date;
 }
 
-interface Commitment {
+export interface Commitment {
   id: string;
   name: string;
   emoji: string;
@@ -55,7 +56,7 @@ interface Commitment {
   color: string;
 }
 
-interface CommitmentPayment {
+export interface CommitmentPayment {
   id: string;
   commitmentId: string;
   monthKey: string;
@@ -65,7 +66,7 @@ interface CommitmentPayment {
   note: string;
 }
 
-interface StockItem {
+export interface StockItem {
   id: string;
   name: string;
   category: PurchaseCategory;
@@ -89,37 +90,95 @@ const PERIOD_LABELS: Record<Period, string> = {
 
 const PURCHASE_ITEMS: Record<PurchaseCategory, { name: string; unit: PurchaseUnit; basePrice: number }[]> = {
   "Fruits & Vegetables": [
+    { name: "Watermelon", unit: "pcs", basePrice: 90 },
     { name: "Papaya", unit: "kg", basePrice: 18 },
-    { name: "Watermelon", unit: "kg", basePrice: 90 },
-    { name: "Pineapple", unit: "kg", basePrice: 55 },
     { name: "Guava", unit: "kg", basePrice: 35 },
+    { name: "Pineapple", unit: "kg", basePrice: 55 },
     { name: "Grapes", unit: "kg", basePrice: 120 },
     { name: "Amla", unit: "kg", basePrice: 80 },
-    { name: "Mosambi", unit: "kg", basePrice: 45 },
-    { name: "Apple", unit: "kg", basePrice: 30 },
-    { name: "Orange", unit: "kg", basePrice: 40 },
-    { name: "Pomegranate", unit: "kg", basePrice: 25 },
-    { name: "Fig fruit", unit: "pcs", basePrice: 30 },
-    { name: "Red Banana", unit: "kg", basePrice: 60 },
-    { name: "Green banana", unit: "kg", basePrice: 120 },
-    { name: "Muskmelon", unit: "kg", basePrice: 100 },
-
+    { name: "Mosambi", unit: "pcs", basePrice: 45 },
+    { name: "Apple", unit: "kg", basePrice: 150 },
+    { name: "Orange", unit: "kg", basePrice: 80 },
+    { name: "Pomegranate", unit: "boxes", basePrice: 250 },
+    { name: "Fig fruit", unit: "boxes", basePrice: 180 },
+    { name: "Red banana", unit: "pcs", basePrice: 10 },
+    { name: "Pacha banana", unit: "pcs", basePrice: 6 },
+    { name: "Nentheram pazham", unit: "pcs", basePrice: 8 },
+    { name: "Musk melon", unit: "pcs", basePrice: 100 },
+    { name: "Lemon", unit: "pcs", basePrice: 4 },
+    { name: "Mint leaves", unit: "packets", basePrice: 15 },
   ],
   "Packaging & Plastics": [
-    { name: "Plastic Cups 250ml", unit: "packets", basePrice: 120 },
-    { name: "Plastic Cups 500ml", unit: "packets", basePrice: 160 },
-    { name: "Paper Straws", unit: "packets", basePrice: 90 },
-    { name: "Eco Bottles", unit: "pcs", basePrice: 8 },
-    { name: "Carry Bags", unit: "packets", basePrice: 70 },
-    { name: "Tissue Paper", unit: "packets", basePrice: 45 },
-    { name: "Sealing Rolls", unit: "pcs", basePrice: 200 },
+    { name: "300 ml cup with lid", unit: "packets", basePrice: 120 },
+    { name: "350 ml cup with lid", unit: "packets", basePrice: 140 },
+    { name: "750 ml cup", unit: "packets", basePrice: 180 },
+    { name: "Hand gloves", unit: "packets", basePrice: 50 },
+    { name: "Tissue paper", unit: "packets", basePrice: 45 },
+    { name: "Straw", unit: "packets", basePrice: 90 },
+    { name: "spoon", unit: "packets", basePrice: 60 },
+    { name: "PVC fork", unit: "packets", basePrice: 70 },
+    { name: "Big bowl", unit: "packets", basePrice: 200 },
+    { name: "Salad box G plate", unit: "packets", basePrice: 150 },
+    { name: "Printing roll (2 inch)", unit: "packets", basePrice: 80 },
+    { name: "Cellotape roll (1 inch)", unit: "pcs", basePrice: 20 },
+    { name: "Rubber band", unit: "packets", basePrice: 40 },
+    { name: "250ml rc parsal cup", unit: "packets", basePrice: 110 },
+    { name: "Silver cover – 6×9", unit: "kg", basePrice: 130 },
+    { name: "Silver cover – 8×10", unit: "kg", basePrice: 130 },
+    { name: "350ml pet bottele", unit: "pcs", basePrice: 6 },
   ],
   "Other Supplies": [
+    { name: "Milk", unit: "liters", basePrice: 60 },
     { name: "Sugar", unit: "kg", basePrice: 42 },
-    { name: "Black Salt", unit: "kg", basePrice: 65 },
-    { name: "Honey", unit: "kg", basePrice: 350 },
-    { name: "Ice", unit: "kg", basePrice: 10 },
-    { name: "Protein Powder", unit: "kg", basePrice: 900 },
+    { name: "Curd", unit: "liters", basePrice: 50 },
+    { name: "Ice cubes", unit: "kg", basePrice: 10 },
+    { name: "RO Water", unit: "liters", basePrice: 5 },
+    { name: "Soda", unit: "pcs", basePrice: 20 },
+    { name: "7Up", unit: "pcs", basePrice: 40 },
+    { name: "Oreo", unit: "packets", basePrice: 30 },
+    { name: "KitKat", unit: "boxes", basePrice: 250 },
+    { name: "Boost", unit: "packets", basePrice: 15 },
+    { name: "wipping cream", unit: "packets", basePrice: 180 },
+    { name: "fresh cream", unit: "packets", basePrice: 120 },
+    { name: "custard powder", unit: "pcs", basePrice: 45 },
+  ],
+  "Ice Cream": [
+    { name: "Vanilla", unit: "pcs", basePrice: 150 },
+    { name: "Strawberry", unit: "pcs", basePrice: 160 },
+    { name: "Black currant", unit: "boxes", basePrice: 220 },
+    { name: "Chocolate", unit: "boxes", basePrice: 180 },
+    { name: "Falooda sev", unit: "packets", basePrice: 40 },
+    { name: "Sabja seeds", unit: "kg", basePrice: 280 },
+    { name: "Strawberry jelly", unit: "boxes", basePrice: 90 },
+    { name: "Pineapple jelly", unit: "boxes", basePrice: 90 },
+  ],
+  "Dry Fruits": [
+    { name: "Dry grapes (black and yellow)", unit: "kg", basePrice: 350 },
+    { name: "Cashew", unit: "kg", basePrice: 900 },
+    { name: "Badam", unit: "kg", basePrice: 850 },
+    { name: "Dates", unit: "kg", basePrice: 240 },
+  ],
+  "Cleaning Utility": [
+    { name: "Scrubber", unit: "packets", basePrice: 30 },
+    { name: "Vim bar liquid", unit: "packets", basePrice: 45 },
+    { name: "Cleaning cloth", unit: "packets", basePrice: 40 },
+    { name: "Dustbin cover(small and extra large)", unit: "packets", basePrice: 50 },
+  ],
+  "Essence": [
+    { name: "Rose milk Syrup", unit: "pcs", basePrice: 180 },
+    { name: "Yellow sarbath", unit: "pcs", basePrice: 140 },
+    { name: "Milk sarbath", unit: "pcs", basePrice: 150 },
+    { name: "Red sarbath", unit: "pcs", basePrice: 140 },
+    { name: "Strawberry syrup", unit: "pcs", basePrice: 160 },
+    { name: "Chocolate syrup", unit: "pcs", basePrice: 130 },
+    { name: "Black currant syrup", unit: "pcs", basePrice: 170 },
+    { name: "Butterscotch syrup", unit: "pcs", basePrice: 170 },
+    { name: "Litchi syrup", unit: "pcs", basePrice: 160 },
+    { name: "Blueberry syrup", unit: "pcs", basePrice: 180 },
+    { name: "Mango syrup", unit: "pcs", basePrice: 160 },
+    { name: "Blue curacao (mojito)", unit: "pcs", basePrice: 220 },
+    { name: "Green mint", unit: "pcs", basePrice: 160 },
+    { name: "Jaljira powder", unit: "packets", basePrice: 50 },
   ],
 };
 
@@ -131,17 +190,29 @@ const CATEGORY_ICONS: Record<PurchaseCategory, typeof Leaf> = {
   "Fruits & Vegetables": Leaf,
   "Packaging & Plastics": Package,
   "Other Supplies": ShoppingCart,
+  "Ice Cream": IceCream,
+  "Dry Fruits": Nut,
+  "Cleaning Utility": Sparkles,
+  "Essence": Droplet,
 };
 
 const CATEGORY_COLORS_BG: Record<PurchaseCategory, string> = {
   "Fruits & Vegetables": "#dcfce7",
   "Packaging & Plastics": "#dbeafe",
   "Other Supplies": "#fef3c7",
+  "Ice Cream": "#fae8ff",
+  "Dry Fruits": "#ffedd5",
+  "Cleaning Utility": "#e0f2fe",
+  "Essence": "#f3e8ff",
 };
 const CATEGORY_COLORS_TEXT: Record<PurchaseCategory, string> = {
   "Fruits & Vegetables": "#166534",
   "Packaging & Plastics": "#1e40af",
   "Other Supplies": "#92400e",
+  "Ice Cream": "#86198f",
+  "Dry Fruits": "#9a3412",
+  "Cleaning Utility": "#0369a1",
+  "Essence": "#6b21a8",
 };
 
 const INCOME_CATEGORIES = ["Fresh Juices", "Smoothies", "Shots & Boosters", "Combo Meals", "Catering", "Online Orders"];
@@ -299,38 +370,51 @@ const INITIAL_COMMITMENT_PAYMENTS: Record<ShopId, CommitmentPayment[]> = {
 
 // ─── Stock Seed Data ──────────────────────────────────────────────────────────
 function buildStockList(seed: number): StockItem[] {
-  const items: StockItem[] = [
-    // Fruits & Vegetables
-    { id: `s${seed}1`,  name: "Watermelon",        category: "Fruits & Vegetables",   currentQty: 12,  unit: "kg",      minThreshold: 10, wanted: false, wantedQty: 20, wantedNote: "" },
-    { id: `s${seed}2`,  name: "Mango",              category: "Fruits & Vegetables",   currentQty: 4,   unit: "kg",      minThreshold: 8,  wanted: true,  wantedQty: 15, wantedNote: "Need before weekend" },
-    { id: `s${seed}3`,  name: "Orange",             category: "Fruits & Vegetables",   currentQty: 8,   unit: "kg",      minThreshold: 5,  wanted: false, wantedQty: 10, wantedNote: "" },
-    { id: `s${seed}4`,  name: "Carrot",             category: "Fruits & Vegetables",   currentQty: 2,   unit: "kg",      minThreshold: 5,  wanted: true,  wantedQty: 8,  wantedNote: "" },
-    { id: `s${seed}5`,  name: "Ginger",             category: "Fruits & Vegetables",   currentQty: 0,   unit: "kg",      minThreshold: 2,  wanted: true,  wantedQty: 3,  wantedNote: "Urgent" },
-    { id: `s${seed}6`,  name: "Lemon",              category: "Fruits & Vegetables",   currentQty: 3,   unit: "kg",      minThreshold: 4,  wanted: true,  wantedQty: 6,  wantedNote: "" },
-    { id: `s${seed}7`,  name: "Pineapple",          category: "Fruits & Vegetables",   currentQty: 5,   unit: "kg",      minThreshold: 4,  wanted: false, wantedQty: 5,  wantedNote: "" },
-    { id: `s${seed}8`,  name: "Spinach",            category: "Fruits & Vegetables",   currentQty: 1,   unit: "kg",      minThreshold: 3,  wanted: true,  wantedQty: 4,  wantedNote: "" },
-    { id: `s${seed}9`,  name: "Beetroot",           category: "Fruits & Vegetables",   currentQty: 6,   unit: "kg",      minThreshold: 3,  wanted: false, wantedQty: 5,  wantedNote: "" },
-    { id: `s${seed}10`, name: "Coconut",            category: "Fruits & Vegetables",   currentQty: 10,  unit: "pcs",     minThreshold: 8,  wanted: false, wantedQty: 20, wantedNote: "" },
-    // Packaging & Plastics
-    { id: `s${seed}11`, name: "Plastic Cups 250ml", category: "Packaging & Plastics", currentQty: 3,   unit: "packets", minThreshold: 5,  wanted: true,  wantedQty: 10, wantedNote: "" },
-    { id: `s${seed}12`, name: "Plastic Cups 500ml", category: "Packaging & Plastics", currentQty: 6,   unit: "packets", minThreshold: 4,  wanted: false, wantedQty: 8,  wantedNote: "" },
-    { id: `s${seed}13`, name: "Paper Straws",       category: "Packaging & Plastics", currentQty: 0,   unit: "packets", minThreshold: 3,  wanted: true,  wantedQty: 5,  wantedNote: "Out of stock" },
-    { id: `s${seed}14`, name: "Carry Bags",         category: "Packaging & Plastics", currentQty: 2,   unit: "packets", minThreshold: 3,  wanted: true,  wantedQty: 6,  wantedNote: "" },
-    { id: `s${seed}15`, name: "Tissue Paper",       category: "Packaging & Plastics", currentQty: 8,   unit: "packets", minThreshold: 4,  wanted: false, wantedQty: 5,  wantedNote: "" },
-    // Other Supplies
-    { id: `s${seed}16`, name: "Sugar",              category: "Other Supplies",        currentQty: 5,   unit: "kg",      minThreshold: 3,  wanted: false, wantedQty: 10, wantedNote: "" },
-    { id: `s${seed}17`, name: "Black Salt",         category: "Other Supplies",        currentQty: 0.5, unit: "kg",      minThreshold: 1,  wanted: true,  wantedQty: 2,  wantedNote: "" },
-    { id: `s${seed}18`, name: "Honey",              category: "Other Supplies",        currentQty: 2,   unit: "kg",      minThreshold: 1,  wanted: false, wantedQty: 2,  wantedNote: "" },
-    { id: `s${seed}19`, name: "Ice",                category: "Other Supplies",        currentQty: 0,   unit: "kg",      minThreshold: 5,  wanted: true,  wantedQty: 20, wantedNote: "Daily need" },
-    { id: `s${seed}20`, name: "Protein Powder",     category: "Other Supplies",        currentQty: 1,   unit: "kg",      minThreshold: 0.5,wanted: false, wantedQty: 2,  wantedNote: "" },
-  ];
-  if (seed === 2) {
-    items[0].currentQty = 8;
-    items[1].currentQty = 10;
-    items[1].wanted = false;
-    items[4].currentQty = 1;
-    items[10].currentQty = 1;
-  }
+  let counter = 1;
+  const items: StockItem[] = Object.entries(PURCHASE_ITEMS).flatMap(([cat, productList]) => {
+    return productList.map((p) => {
+      const id = `s${seed}${counter++}`;
+      // Generate realistic deterministic quantities and thresholds
+      const hash = (p.name.charCodeAt(0) + p.name.charCodeAt(p.name.length - 1)) || 10;
+      let currentQty = (hash % 12) + 2;
+      let minThreshold = Math.floor(currentQty * 0.7) + 1;
+      let wanted = (hash % 8 === 0);
+      let wantedQty = Math.floor(minThreshold * 1.8) + 2;
+      let wantedNote = "";
+
+      // Realistic overrides for specific items
+      if (p.name === "Watermelon") {
+        currentQty = seed === 1 ? 12 : 8;
+        minThreshold = 10;
+        wanted = false;
+      } else if (p.name === "Mango Syrup") {
+        currentQty = seed === 1 ? 4 : 10;
+        minThreshold = 8;
+        wanted = (seed === 1);
+        wantedNote = wanted ? "Need before weekend" : "";
+      } else if (p.name === "Lemon") {
+        currentQty = seed === 1 ? 25 : 15;
+        minThreshold = 20;
+        wanted = (seed === 2);
+      } else if (p.name === "300 ml cup with lid") {
+        currentQty = seed === 1 ? 3 : 1;
+        minThreshold = 5;
+        wanted = true;
+      }
+
+      return {
+        id,
+        name: p.name,
+        category: cat as PurchaseCategory,
+        currentQty,
+        unit: p.unit,
+        minThreshold,
+        wanted,
+        wantedQty,
+        wantedNote,
+      };
+    });
+  });
   return items;
 }
 
@@ -725,6 +809,10 @@ function PurchasesView({
       "Fruits & Vegetables": [],
       "Packaging & Plastics": [],
       "Other Supplies": [],
+      "Ice Cream": [],
+      "Dry Fruits": [],
+      "Cleaning Utility": [],
+      "Essence": [],
     };
     itemSummary.forEach((item) => {
       cats[item.category].push(item);
@@ -1095,6 +1183,10 @@ function StockView({
     "Fruits & Vegetables": Leaf,
     "Packaging & Plastics": Package,
     "Other Supplies": ShoppingCart,
+    "Ice Cream": IceCream,
+    "Dry Fruits": Nut,
+    "Cleaning Utility": Sparkles,
+    "Essence": Droplet,
   };
 
   return (
@@ -1326,7 +1418,15 @@ function StockView({
                   const catWanted = wantedItems.filter((i) => i.category === cat);
                   if (catWanted.length === 0) return null;
                   const CatIcon = CAT_ICONS[cat] || Package;
-                  const CAT_ICONS2: Record<string, typeof Leaf> = { "Fruits & Vegetables": Leaf, "Packaging & Plastics": Package, "Other Supplies": ShoppingCart };
+                  const CAT_ICONS2: Record<string, typeof Leaf> = {
+                    "Fruits & Vegetables": Leaf,
+                    "Packaging & Plastics": Package,
+                    "Other Supplies": ShoppingCart,
+                    "Ice Cream": IceCream,
+                    "Dry Fruits": Nut,
+                    "Cleaning Utility": Sparkles,
+                    "Essence": Droplet,
+                  };
                   const CIcon = CAT_ICONS2[cat] || Package;
                   return (
                     <div key={cat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
