@@ -215,10 +215,11 @@ const CATEGORY_COLORS_TEXT: Record<PurchaseCategory, string> = {
   "Essence": "#6b21a8",
 };
 
-const INCOME_CATEGORIES = ["Fresh Juices", "Smoothies", "Shots & Boosters", "Combo Meals", "Catering", "Online Orders"];
+const INCOME_CATEGORIES = ["Full Day Income"];
 const EXPENSE_CATEGORIES = ["Fruits & Produce", "Equipment", "Rent", "Utilities", "Staff Wages", "Packaging", "Marketing", "Miscellaneous"];
 
 const CATEGORY_COLORS: Record<string, string> = {
+  "Full Day Income": "#1a7a3c",
   "Fresh Juices": "#1a7a3c", Smoothies: "#34d399", "Shots & Boosters": "#a3e635",
   "Combo Meals": "#fbbf24", Catering: "#f97316", "Online Orders": "#60a5fa",
   "Fruits & Produce": "#ef4444", Equipment: "#8b5cf6", Rent: "#ec4899",
@@ -231,12 +232,7 @@ function generateTransactions(shopId: ShopId): Transaction[] {
   const txns: Transaction[] = [];
   const now = new Date();
   const incomeTemplates = [
-    { category: "Fresh Juices", descriptions: ["Watermelon juice sale", "Orange blend batch", "Carrot-ginger juice", "Green detox bundle"] },
-    { category: "Smoothies", descriptions: ["Mango-pineapple smoothie", "Berry blast smoothie", "Tropical sunrise mix"] },
-    { category: "Shots & Boosters", descriptions: ["Wheatgrass shots ×10", "Ginger immunity shot", "Turmeric booster pack"] },
-    { category: "Combo Meals", descriptions: ["Juice + snack combo", "Family fruit box", "Office combo order"] },
-    { category: "Catering", descriptions: ["Office party catering", "Wedding juice bar"] },
-    { category: "Online Orders", descriptions: ["Zomato order batch", "Swiggy delivery batch"] },
+    { category: "Full Day Income", descriptions: ["Full Day Sales"] },
   ];
   const expenseTemplates = [
     { category: "Rent", descriptions: ["Monthly shop rent"] },
@@ -815,7 +811,8 @@ function PurchasesView({
       "Essence": [],
     };
     itemSummary.forEach((item) => {
-      cats[item.category].push(item);
+      const cat = cats[item.category] ? item.category : "Other Supplies";
+      cats[cat].push(item);
     });
     return cats;
   }, [itemSummary]);
@@ -831,7 +828,9 @@ function PurchasesView({
     const item = ALL_ITEMS_FLAT.find((i) => i.name === name);
     if (item) {
       setFormUnit(item.unit);
-      setFormPpu(String(item.basePrice));
+      const qty = parseFloat(formQty) || 1;
+      if (!formQty) setFormQty("1");
+      setFormPpu(String(item.basePrice * qty));
     }
     setFormItem(name);
   }
@@ -846,15 +845,16 @@ function PurchasesView({
   function submit() {
     if (!formItem || !formQty || !formPpu) return;
     const qty = parseFloat(formQty);
-    const ppu = parseFloat(formPpu);
+    const totalPrice = parseFloat(formPpu);
+    const ppu = totalPrice / qty;
     onAdd({
       id: Date.now().toString(),
       itemName: formItem,
       category: formCat,
       quantity: qty,
       unit: formUnit,
-      pricePerUnit: ppu,
-      totalPrice: Math.round(qty * ppu),
+      pricePerUnit: Math.round(ppu * 100) / 100,
+      totalPrice: Math.round(totalPrice),
       date: new Date(formDate),
     });
     setFormItem(""); setFormQty(""); setFormPpu("");
@@ -956,9 +956,9 @@ function PurchasesView({
               </div>
             </div>
 
-            {/* Price per unit */}
+            {/* Total Amount Spent */}
             <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Price per {formUnit || "unit"} (₹)</label>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Total Amount Spent (₹)</label>
               <input
                 type="number" placeholder="0.00" value={formPpu}
                 onChange={(e) => setFormPpu(e.target.value)}
@@ -966,7 +966,7 @@ function PurchasesView({
               />
               {formQty && formPpu && (
                 <p className="text-xs text-primary font-semibold mt-1.5 font-[DM_Mono,monospace]">
-                  Total: {fmt(Math.round(parseFloat(formQty) * parseFloat(formPpu)))}
+                  Price per {formUnit || "unit"}: {fmt(Math.round((parseFloat(formPpu) / parseFloat(formQty)) * 100) / 100)}
                 </p>
               )}
             </div>
@@ -1925,8 +1925,10 @@ function FinanceView({
   const visibleTxns = useMemo(() => filtered.filter((t) => activeTab === "all" || t.type === activeTab).slice(0, 25), [filtered, activeTab]);
 
   function addTransaction() {
-    if (!formAmount || !formCategory || !formDesc) return;
-    onAdd({ id: Date.now().toString(), type: formType, paymentMethod: formPayment, amount: Math.abs(parseFloat(formAmount)), category: formCategory, description: formDesc, date: new Date(formDate) });
+    if (!formAmount) return;
+    const category = formType === "income" ? "Full Day Income" : (formCategory || "Miscellaneous");
+    const description = formType === "income" ? "Full Day Sales" : (formDesc || "Shop Expense");
+    onAdd({ id: Date.now().toString(), type: formType, paymentMethod: formPayment, amount: Math.abs(parseFloat(formAmount)), category, description, date: new Date(formDate) });
     setFormAmount(""); setFormCategory(""); setFormDesc(""); setFormDate(new Date().toISOString().split("T")[0]); setShowForm(false);
   }
 
@@ -2093,25 +2095,29 @@ function FinanceView({
                 <label className="text-xs font-semibold text-muted-foreground mb-1 block">Amount (₹)</label>
                 <input type="number" placeholder="0" value={formAmount} onChange={(e) => setFormAmount(e.target.value)} className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
               </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Category</label>
-                <div className="relative">
-                  <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring appearance-none">
-                    <option value="">Select category…</option>
-                    {(formType === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Description</label>
-                <input type="text" placeholder="e.g. Mango juice batch sale" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
+              {formType === "expense" && (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Category</label>
+                    <div className="relative">
+                      <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring appearance-none">
+                        <option value="">Select category…</option>
+                        {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Description</label>
+                    <input type="text" placeholder="e.g. Shop utility payment" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="text-xs font-semibold text-muted-foreground mb-1 block">Date</label>
                 <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
               </div>
-              <button onClick={addTransaction} disabled={!formAmount || !formCategory || !formDesc} className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 hover:opacity-90 transition-opacity" style={{ backgroundColor: shop.color }}>Save Entry</button>
+              <button onClick={addTransaction} disabled={!formAmount} className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 hover:opacity-90 transition-opacity" style={{ backgroundColor: shop.color }}>Save Entry</button>
             </div>
           </div>
         </div>
