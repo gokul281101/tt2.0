@@ -2122,12 +2122,8 @@ function FinanceView({
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem("jsf_logged_in") === "true" || sessionStorage.getItem("jsf_logged_in") === "true";
-  });
-  const [userEmail, setUserEmail] = useState<string>(() => {
-    return localStorage.getItem("jsf_user_email") || sessionStorage.getItem("jsf_user_email") || "";
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
+  const [userEmail, setUserEmail] = useState<string>("admin@jsfinance.com");
   const [activeShop, setActiveShop] = useState<ShopId>("shop1");
   const [mainView, setMainView] = useState<MainView>("finance");
   const [shopTransactions, setShopTransactions] = useState<Record<ShopId, Transaction[]>>(INITIAL_TRANSACTIONS);
