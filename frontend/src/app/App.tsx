@@ -79,6 +79,7 @@ export interface StockItem {
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
+const USE_DEMO_DATA = false;
 const SHOPS: Record<ShopId, { name: string; color: string; emoji: string }> = {
   shop1: { name: "Shop 1 — Theppakulam", color: "#1a7a3c", emoji: "🥤" },
   shop2: { name: "Shop 2 — Anuppanandi", color: "#0ea5e9", emoji: "🍹" },
@@ -296,12 +297,12 @@ function generatePurchases(shopId: ShopId): Purchase[] {
 }
 
 const INITIAL_TRANSACTIONS: Record<ShopId, Transaction[]> = {
-  shop1: generateTransactions("shop1"),
-  shop2: generateTransactions("shop2"),
+  shop1: USE_DEMO_DATA ? generateTransactions("shop1") : [],
+  shop2: USE_DEMO_DATA ? generateTransactions("shop2") : [],
 };
 const INITIAL_PURCHASES: Record<ShopId, Purchase[]> = {
-  shop1: generatePurchases("shop1"),
-  shop2: generatePurchases("shop2"),
+  shop1: USE_DEMO_DATA ? generatePurchases("shop1") : [],
+  shop2: USE_DEMO_DATA ? generatePurchases("shop2") : [],
 };
 
 // ─── Commitment Seed Data ─────────────────────────────────────────────────────
@@ -360,8 +361,8 @@ function generateCommitmentPayments(shopId: ShopId, commitments: Commitment[]): 
 }
 
 const INITIAL_COMMITMENT_PAYMENTS: Record<ShopId, CommitmentPayment[]> = {
-  shop1: generateCommitmentPayments("shop1", INITIAL_COMMITMENTS.shop1),
-  shop2: generateCommitmentPayments("shop2", INITIAL_COMMITMENTS.shop2),
+  shop1: USE_DEMO_DATA ? generateCommitmentPayments("shop1", INITIAL_COMMITMENTS.shop1) : [],
+  shop2: USE_DEMO_DATA ? generateCommitmentPayments("shop2", INITIAL_COMMITMENTS.shop2) : [],
 };
 
 // ─── Stock Seed Data ──────────────────────────────────────────────────────────
@@ -372,30 +373,32 @@ function buildStockList(seed: number): StockItem[] {
       const id = `s${seed}${counter++}`;
       // Generate realistic deterministic quantities and thresholds
       const hash = (p.name.charCodeAt(0) + p.name.charCodeAt(p.name.length - 1)) || 10;
-      let currentQty = (hash % 12) + 2;
-      let minThreshold = Math.floor(currentQty * 0.7) + 1;
-      let wanted = (hash % 8 === 0);
-      let wantedQty = Math.floor(minThreshold * 1.8) + 2;
+      let currentQty = USE_DEMO_DATA ? ((hash % 12) + 2) : 0;
+      let minThreshold = USE_DEMO_DATA ? (Math.floor(currentQty * 0.7) + 1) : 0;
+      let wanted = USE_DEMO_DATA ? (hash % 8 === 0) : false;
+      let wantedQty = USE_DEMO_DATA ? (Math.floor(minThreshold * 1.8) + 2) : 0;
       let wantedNote = "";
 
       // Realistic overrides for specific items
-      if (p.name === "Watermelon") {
-        currentQty = seed === 1 ? 12 : 8;
-        minThreshold = 10;
-        wanted = false;
-      } else if (p.name === "Mango Syrup") {
-        currentQty = seed === 1 ? 4 : 10;
-        minThreshold = 8;
-        wanted = (seed === 1);
-        wantedNote = wanted ? "Need before weekend" : "";
-      } else if (p.name === "Lemon") {
-        currentQty = seed === 1 ? 25 : 15;
-        minThreshold = 20;
-        wanted = (seed === 2);
-      } else if (p.name === "300 ml cup with lid") {
-        currentQty = seed === 1 ? 3 : 1;
-        minThreshold = 5;
-        wanted = true;
+      if (USE_DEMO_DATA) {
+        if (p.name === "Watermelon") {
+          currentQty = seed === 1 ? 12 : 8;
+          minThreshold = 10;
+          wanted = false;
+        } else if (p.name === "Mango Syrup") {
+          currentQty = seed === 1 ? 4 : 10;
+          minThreshold = 8;
+          wanted = (seed === 1);
+          wantedNote = wanted ? "Need before weekend" : "";
+        } else if (p.name === "Lemon") {
+          currentQty = seed === 1 ? 25 : 15;
+          minThreshold = 20;
+          wanted = (seed === 2);
+        } else if (p.name === "300 ml cup with lid") {
+          currentQty = seed === 1 ? 3 : 1;
+          minThreshold = 5;
+          wanted = true;
+        }
       }
 
       return {
