@@ -270,6 +270,15 @@ export const api = {
     return mapPurchaseToFrontend(result.data);
   },
 
+  async deletePurchase(shopId: ShopId, id: string): Promise<void> {
+    const response = await fetch(`${BASE_URL}/purchases/${id}`, {
+      method: "DELETE",
+      headers: getHeaders(shopId),
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.message || "Failed to delete purchase");
+  },
+
   // Commitments API
   async getCommitments(shopId: ShopId, monthKey: string): Promise<{ commitments: Commitment[]; payments: CommitmentPayment[] }> {
     const response = await fetch(`${BASE_URL}/commitments?monthKey=${monthKey}`, { headers: getHeaders(shopId) });

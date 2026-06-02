@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { X, Hash, Weight, Wallet, Calendar, Package } from "lucide-react";
+import { X, Hash, Weight, Wallet, Calendar, Package, Trash2 } from "lucide-react";
 import type { Purchase } from "../types";
 import { ALL_ITEMS_FLAT, CATEGORY_ICONS } from "../constants";
 import { fmt, fmtShort, monthKey } from "../utils";
@@ -8,12 +8,14 @@ interface ItemDetailModalProps {
   itemName: string;
   purchases: Purchase[];
   onClose: () => void;
+  onDeletePurchase: (id: string) => void;
 }
 
 export function ItemDetailModal({
   itemName,
   purchases,
   onClose,
+  onDeletePurchase,
 }: ItemDetailModalProps) {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(monthKey(now));
@@ -148,6 +150,18 @@ export function ItemDetailModal({
                   <div className="text-xs font-bold text-primary font-[DM_Mono,monospace] w-16 text-right">
                     {fmt(p.totalPrice)}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Are you sure you want to delete this purchase entry?")) {
+                        onDeletePurchase(p.id);
+                      }
+                    }}
+                    className="p-1 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                    title="Delete Purchase"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
               ))}
             </div>

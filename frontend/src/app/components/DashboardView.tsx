@@ -9,6 +9,7 @@ import {
   ArrowRight,
   Store,
   Flame,
+  Trash2,
 } from "lucide-react";
 import {
   BarChart,
@@ -44,6 +45,9 @@ interface DashboardViewProps {
   commitmentPayments: CommitmentPayment[];
   onNavigateTo: (view: any) => void;
   onSelectShop: (shopId: ShopId) => void;
+  onDelete: (id: string, type: any, targetShop: ShopId) => void;
+  onAddIncome: () => void;
+  onAddExpense: () => void;
 }
 
 export function DashboardView({
@@ -55,6 +59,9 @@ export function DashboardView({
   commitmentPayments,
   onNavigateTo,
   onSelectShop,
+  onDelete,
+  onAddIncome,
+  onAddExpense,
 }: DashboardViewProps) {
   // Combine all transactions with shop annotations
   const allTxns = useMemo(() => {
@@ -161,8 +168,8 @@ export function DashboardView({
     const totalSalesIncome = cashIncome + gpayIncome + zomatoIncome;
     const balance = cash + gpay + zomato;
 
-    // Net Profit = Total Sales Income − Total Shop Expenses − Commitments Paid
-    const netProfit = totalSalesIncome - expensesTotal - totalCommitments;
+    // Net Profit = Overall Balance − (Expenses + Commitments)
+    const netProfit = balance - (expensesTotal + totalCommitments);
 
     return {
       cash,
@@ -214,20 +221,40 @@ export function DashboardView({
         <div className="absolute right-0 bottom-0 opacity-10 translate-x-12 translate-y-12">
           <Layers size={220} />
         </div>
-        <div className="max-w-xl space-y-2 relative z-10">
-          <span className="bg-emerald-600/40 text-emerald-300 text-[10px] font-extrabold tracking-widest uppercase px-3 py-1 rounded-full border border-emerald-500/20">
-            Unified Executive Dashboard
-          </span>
-          <h2 className="text-2xl font-bold tracking-tight">Juice Shop Combined Analytics</h2>
-          <p className="text-emerald-200/80 text-xs">
-            Reviewing combined results, revenue streams, and expense reports across both **Theppakulam** and **Anuppanadi** shop branches.
-          </p>
+        
+        {/* Banner main content row */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+          <div className="max-w-xl space-y-2">
+            <span className="bg-emerald-600/40 text-emerald-300 text-[10px] font-extrabold tracking-widest uppercase px-3 py-1 rounded-full border border-emerald-500/20">
+              Unified Executive Dashboard
+            </span>
+            <h2 className="text-2xl font-bold tracking-tight">Trending Thamila Combined Analytics</h2>
+            <p className="text-emerald-200/80 text-xs">
+              Reviewing combined results, revenue streams, and expense reports across both **Theppakulam** and **Anuppanadi** shop branches.
+            </p>
+          </div>
+
+          {/* Quick Action buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center flex-shrink-0">
+            <button
+              onClick={onAddIncome}
+              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-[0.97] shadow-lg shadow-emerald-900/40 border border-emerald-500/20 transition-all duration-200 cursor-pointer"
+            >
+              📈 Add Shop Income
+            </button>
+            <button
+              onClick={onAddExpense}
+              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-extrabold text-white bg-amber-600 hover:bg-amber-500 active:scale-[0.97] shadow-lg shadow-amber-900/40 border border-amber-500/20 transition-all duration-200 cursor-pointer"
+            >
+              📉 Add Shop Expense
+            </button>
+          </div>
         </div>
 
         {/* Formula calculation display */}
-        <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap gap-4 items-center justify-between">
+        <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap gap-4 items-center justify-between relative z-10">
           <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-2 text-xs flex items-center gap-1.5 border border-white/10 text-emerald-100">
-            <span className="font-bold text-emerald-300">Formula:</span> Net Profit = Total Sales Income − Shop Expenses − Commitments Paid
+            <span className="font-bold text-emerald-300">Formula:</span> Net Profit = Overall Balance − (Expenses + Commitments)
           </div>
           <button
             onClick={() => onNavigateTo("reports")}
@@ -321,7 +348,7 @@ export function DashboardView({
             }`}>
               {fmt(stats.netProfit)}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-1">Sales − Expenses − Commitments</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Balance − (Expenses + Commitments)</p>
           </div>
         </div>
 
@@ -459,7 +486,7 @@ export function DashboardView({
             return (
               <div
                 key={t.id}
-                className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 border border-transparent hover:border-border/50 transition-all text-xs"
+                className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 border border-transparent hover:border-border/50 transition-all text-xs group"
               >
                 <div className="flex items-center gap-3">
                   <div
@@ -483,14 +510,28 @@ export function DashboardView({
                     </div>
                   </div>
                 </div>
-                <span
-                  className={`font-black font-[DM_Mono,monospace] text-right ${
-                    t.type === "income" ? "text-green-700" : "text-red-600"
-                  }`}
-                >
-                  {t.type === "income" ? "+" : "−"}
-                  {fmt(t.amount)}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`font-black font-[DM_Mono,monospace] text-right ${
+                      t.type === "income" ? "text-green-700" : "text-red-600"
+                    }`}
+                  >
+                    {t.type === "income" ? "+" : "−"}
+                    {fmt(t.amount)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to delete this ${t.type === "income" ? "income" : "expense"} entry?`)) {
+                        onDelete(t.id, t.type, t.shopId);
+                      }
+                    }}
+                    className="text-muted-foreground hover:text-destructive p-1 rounded-lg hover:bg-red-50 opacity-70 md:opacity-0 md:group-hover:opacity-100 hover:opacity-100 transition-opacity"
+                    title="Delete Entry"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
             );
           })}

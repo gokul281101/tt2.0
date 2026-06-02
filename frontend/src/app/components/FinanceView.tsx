@@ -289,9 +289,9 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
                 setFormCategory("Full Day Income");
                 setShowForm(true);
               }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white hover:opacity-90 transition-all shadow-sm bg-emerald-700 cursor-pointer"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 border border-emerald-500/30 shadow-md shadow-emerald-900/15 hover:shadow-lg hover:shadow-emerald-900/25 active:scale-[0.97] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-all duration-200 cursor-pointer"
             >
-              <Plus size={13} /> Add Entry
+              <Plus size={15} className="stroke-[2.5]" /> Add Entry
             </button>
         </div>
 
@@ -508,7 +508,7 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
                         onDelete(t.id, t.type, shopId);
                       }
                     }}
-                    className="text-muted-foreground hover:text-destructive p-1 rounded-lg hover:bg-red-50 opacity-70 md:opacity-0 md:group-hover:opacity-100 hover:opacity-100 transition-opacity"
+                    className="text-muted-foreground hover:text-destructive p-1 rounded-lg hover:bg-red-50 opacity-70 hover:opacity-100 transition-opacity"
                   >
                     <Trash2 size={13} />
                   </button>

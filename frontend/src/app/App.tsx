@@ -292,6 +292,23 @@ export default function App() {
     }
   }
 
+  async function deletePurchase(id: string, targetShopId: ShopId = activeShop) {
+    try {
+      await api.deletePurchase(targetShopId, id);
+      setShopPurchases((prev) => ({
+        ...prev,
+        shop1: prev.shop1.filter((p) => p.id !== id),
+        shop2: prev.shop2.filter((p) => p.id !== id),
+      }));
+
+      // Reload stock to reflect inventory adjustments
+      const updatedStock = await api.getStock(targetShopId);
+      setShopStock((prev) => ({ ...prev, [targetShopId]: updatedStock }));
+    } catch (error) {
+      console.error("Failed to delete purchase:", error);
+    }
+  }
+
   async function addCommitment(c: Commitment) {
     try {
       const newC = await api.addCommitment(activeShop, c);
@@ -728,7 +745,7 @@ export default function App() {
             {shop.emoji}
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-base font-bold leading-tight">JuiceShop MERN Finance</h1>
+            <h1 className="text-base font-bold leading-tight">Trending Thamila Finance</h1>
             <p className="text-xs text-muted-foreground">{shop.name}</p>
           </div>
         </div>
@@ -1126,6 +1143,9 @@ export default function App() {
             commitmentPayments={commitmentPayments}
             onNavigateTo={setMainView}
             onSelectShop={setActiveShop}
+            onDelete={deleteTransaction}
+            onAddIncome={() => setShowQuickIncome(true)}
+            onAddExpense={() => setShowQuickExpense(true)}
           />
         )}
         {mainView === "sales" && (
@@ -1141,6 +1161,7 @@ export default function App() {
             shopId={activeShop}
             purchases={shopPurchases[activeShop] || []}
             onAdd={(p) => addPurchase(p, activeShop)}
+            onDeletePurchase={(id) => deletePurchase(id, activeShop)}
             stockList={shopStockList[activeShop] || {}}
             onStockToggle={toggleStockItem}
             customItems={shopCustomItems[activeShop] || []}
@@ -1215,13 +1236,13 @@ export default function App() {
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
           {/* Quick Menu Options */}
           {showQuickEntry && (
-            <div className="mb-3 flex flex-col gap-2.5 items-end transition-all duration-200">
+            <div className="mb-3.5 flex flex-col gap-3 items-end transition-all duration-200">
               <button
                 onClick={() => {
                   setShowQuickIncome(true);
                   setShowQuickEntry(false);
                 }}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-full px-4 py-2 text-xs font-bold shadow-xl border border-emerald-600/35 hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-full px-5 py-2.5 text-xs font-extrabold shadow-xl border border-emerald-600/35 hover:scale-105 transition-all duration-200 flex items-center gap-2 cursor-pointer"
               >
                 💵 Quick Income Entry
               </button>
@@ -1230,7 +1251,7 @@ export default function App() {
                   setShowQuickExpense(true);
                   setShowQuickEntry(false);
                 }}
-                className="bg-amber-700 hover:bg-amber-800 text-white rounded-full px-4 py-2 text-xs font-bold shadow-xl border border-amber-600/35 hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
+                className="bg-amber-700 hover:bg-amber-800 text-white rounded-full px-5 py-2.5 text-xs font-extrabold shadow-xl border border-amber-600/35 hover:scale-105 transition-all duration-200 flex items-center gap-2 cursor-pointer"
               >
                 💸 Quick Expense Entry
               </button>
@@ -1240,13 +1261,13 @@ export default function App() {
           {/* Main FAB Circle Button */}
           <button
             onClick={() => setShowQuickEntry((v) => !v)}
-            className="w-14 h-14 rounded-full bg-emerald-700 text-white flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none border-2 border-white/20 cursor-pointer"
+            className="w-16 h-16 rounded-full bg-emerald-700 text-white flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none border-2 border-white/20 cursor-pointer"
             style={{
               background: "linear-gradient(135deg, #047857 0%, #064e3b 100%)",
             }}
           >
             <Plus
-              size={24}
+              size={28}
               className={`transform transition-transform duration-300 ${
                 showQuickEntry ? "rotate-45" : ""
               }`}

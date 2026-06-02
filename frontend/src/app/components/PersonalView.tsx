@@ -101,14 +101,14 @@ export function PersonalView({ expenses, onAdd, onDelete }: PersonalViewProps) {
           </span>
           <h2 className="text-xl font-bold tracking-tight">Personal Expenses Ledger</h2>
           <p className="text-emerald-100/70 text-xs max-w-md">
-            Separate your household and personal spendings entirely from your commercial juice shop finances.
+            Separate your household and personal spendings entirely from your commercial Trending Thamila finances.
           </p>
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-white text-emerald-800 hover:bg-emerald-50 transition-all shadow-md"
+          className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-extrabold text-emerald-800 bg-white hover:bg-emerald-50 hover:text-emerald-900 border border-emerald-200/60 shadow-md hover:shadow-lg active:scale-[0.97] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-all duration-200 cursor-pointer"
         >
-          <Plus size={14} /> Log Personal Expense
+          <Plus size={15} className="stroke-[2.5]" /> Log Personal Expense
         </button>
       </div>
 

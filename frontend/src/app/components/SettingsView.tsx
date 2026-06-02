@@ -56,7 +56,7 @@ export function SettingsView({ onResetDatabase, onSeedDatabase }: SettingsViewPr
           </span>
           <h2 className="text-xl font-bold tracking-tight">System & Branch Settings</h2>
           <p className="text-emerald-200/80 text-xs">
-            Review juice shop branch profiles, manage administrative passcodes, and trigger database maintenance logs.
+            Review Trending Thamila branch profiles, manage administrative passcodes, and trigger database maintenance logs.
           </p>
         </div>
       </div>
@@ -68,7 +68,7 @@ export function SettingsView({ onResetDatabase, onSeedDatabase }: SettingsViewPr
           <div className="bg-card rounded-2xl border border-border p-5 shadow-sm space-y-4">
             <h3 className="text-sm font-bold flex items-center gap-2">
               <Store size={15} className="text-emerald-700" />
-              Juice Shop Branches Profiles
+              Trending Thamila Branches Profiles
             </h3>
 
             <div className="space-y-3">

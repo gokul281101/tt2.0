@@ -165,7 +165,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             Admin <span className="text-primary font-extrabold">Access</span>
           </h2>
           <p className="text-xs text-muted-foreground mt-1 px-4">
-            Enter the admin password to unlock JuiceShop Finance.
+            Enter the admin password to unlock Trending Thamila Finance.
           </p>
         </div>
 

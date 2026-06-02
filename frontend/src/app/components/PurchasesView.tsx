@@ -23,6 +23,7 @@ interface PurchasesViewProps {
   shopId: ShopId;
   purchases: Purchase[];
   onAdd: (p: Purchase) => void;
+  onDeletePurchase: (id: string) => void;
   stockList: Record<string, StockStatus>;
   onStockToggle: (itemName: string) => void;
   customItems: string[];
@@ -34,6 +35,7 @@ export function PurchasesView({
   shopId,
   purchases,
   onAdd,
+  onDeletePurchase,
   stockList,
   onStockToggle,
   customItems,
@@ -612,6 +614,7 @@ export function PurchasesView({
           itemName={selectedItem}
           purchases={purchases.filter((p) => p.itemName === selectedItem)}
           onClose={() => setSelectedItem(null)}
+          onDeletePurchase={onDeletePurchase}
         />
       )}
 
