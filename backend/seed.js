@@ -9,6 +9,11 @@ const Commitment = require('./models/Commitment');
 const CommitmentPayment = require('./models/CommitmentPayment');
 const Purchase = require('./models/Purchase');
 const Inventory = require('./models/Inventory');
+const PersonalExpense = require('./models/PersonalExpense');
+const Debt = require('./models/Debt');
+const Staff = require('./models/Staff');
+const Attendance = require('./models/Attendance');
+const SalaryPayment = require('./models/SalaryPayment');
 
 async function seed() {
   await mongoose.connect(process.env.MONGO_URI);
@@ -22,7 +27,12 @@ async function seed() {
     Commitment.deleteMany(),
     CommitmentPayment.deleteMany(),
     Purchase.deleteMany(),
-    Inventory.deleteMany()
+    Inventory.deleteMany(),
+    PersonalExpense.deleteMany(),
+    Debt.deleteMany(),
+    Staff.deleteMany(),
+    Attendance.deleteMany(),
+    SalaryPayment.deleteMany()
   ]);
 
   // Admin user
@@ -30,7 +40,7 @@ async function seed() {
   console.log('✅ Admin user: admin@jsfinance.com / admin123');
 
   const shops = ['Shop 1', 'Shop 2'];
-  const methods = ['cash', 'gpay', 'card'];
+  const methods = ['cash', 'gpay', 'zomato'];
 
   // Seed data for both shops
   for (const shop of shops) {
@@ -73,8 +83,8 @@ async function seed() {
       expenses.push({
         amount,
         type,
-        shop,
-        description: `${shop} - ${type} payment`,
+        shop: 'Global',
+        description: `${type} payment`,
         date: d
       });
     }
@@ -126,7 +136,88 @@ async function seed() {
     ]);
   }
 
-  console.log('✅ Database seeded successfully with multi-shop records!');
+  // 6. Personal Expenses
+  console.log('Seeding Personal Expenses...');
+  await PersonalExpense.insertMany([
+    { amount: 1500, category: 'Home', description: 'Groceries and provisions', date: new Date(Date.now() - 3600000 * 24 * 3), paymentMethod: 'cash' },
+    { amount: 500, category: 'Personal Use', description: 'Haircut and grooming', date: new Date(Date.now() - 3600000 * 24 * 5), paymentMethod: 'cash' },
+    { amount: 4500, category: 'Home', description: 'Electric oven for kitchen', date: new Date(Date.now() - 3600000 * 24 * 10), paymentMethod: 'gpay' },
+    { amount: 1200, category: 'Personal Use', description: 'Movie night & dinner', date: new Date(Date.now() - 3600000 * 24 * 12), paymentMethod: 'gpay' },
+  ]);
+
+  // 7. Debts
+  console.log('Seeding Debts...');
+  const debt1 = await Debt.create({
+    debtName: 'Shop Expansion Loan',
+    creditorName: 'HDFC Business Bank',
+    originalAmount: 150000,
+    remainingAmount: 150000,
+    dueDate: new Date(Date.now() + 3600000 * 24 * 90),
+    payments: []
+  });
+
+  const debt2 = await Debt.create({
+    debtName: 'Fruit Vendor Credit',
+    creditorName: 'Venkatesh Fruit Traders',
+    originalAmount: 25000,
+    remainingAmount: 25000,
+    dueDate: new Date(Date.now() + 3600000 * 24 * 15),
+    payments: []
+  });
+
+  // Make some partial payments
+  debt1.payments.push({ amount: 30000, date: new Date(Date.now() - 3600000 * 24 * 20), description: 'Initial installment', paymentMethod: 'gpay' });
+  debt1.remainingAmount = 120000;
+  await debt1.save();
+
+  debt2.payments.push({ amount: 5000, date: new Date(Date.now() - 3600000 * 24 * 5), description: 'Weekly clearing', paymentMethod: 'cash' });
+  debt2.payments.push({ amount: 8000, date: new Date(Date.now() - 3600000 * 24 * 2), description: 'Batch payment', paymentMethod: 'gpay' });
+  debt2.remainingAmount = 12000;
+  await debt2.save();
+
+  // 8. Staff & Attendance
+  console.log('Seeding Staff and Attendance records...');
+  const staff1 = await Staff.create({
+    name: 'Karthik Raja',
+    dailyWage: 750,
+    wageHistory: [
+      { dailyWage: 650, effectiveDate: new Date(0) },
+      { dailyWage: 750, effectiveDate: new Date(Date.now() - 3600000 * 24 * 5) }
+    ]
+  });
+  const staff2 = await Staff.create({ name: 'Manoj Kumar', dailyWage: 550 });
+  const staff3 = await Staff.create({ name: 'Srinivasan', dailyWage: 600 });
+
+  // Seed attendance for the last 20 days
+  const attendanceRecords = [];
+  for (let i = 20; i >= 1; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+
+    // Karthik Raja (present most of the time)
+    attendanceRecords.push({ staffId: staff1._id, date: d, status: i % 10 === 0 ? 'absent' : 'present' });
+    // Manoj Kumar
+    attendanceRecords.push({ staffId: staff2._id, date: d, status: i % 7 === 0 ? 'absent' : 'present' });
+    // Srinivasan
+    attendanceRecords.push({ staffId: staff3._id, date: d, status: i % 5 === 0 ? 'absent' : 'present' });
+  }
+  await Attendance.insertMany(attendanceRecords);
+
+  // 9. Seed Salary Payments
+  console.log('Seeding Salary Payments...');
+  const lastMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth()).padStart(2, "0")}`; // e.g. 2026-05
+  await SalaryPayment.create({
+    staffId: staff1._id,
+    staffName: staff1.name,
+    monthKey: lastMonthKey,
+    amount: 18 * staff1.dailyWage, // 18 days present
+    paymentMethod: 'gpay',
+    paidDate: new Date(Date.now() - 3600000 * 24 * 1), // yesterday
+    note: 'May salary disbursed'
+  });
+
+  console.log('✅ Database seeded successfully with all multi-shop financial records!');
   process.exit(0);
 }
 

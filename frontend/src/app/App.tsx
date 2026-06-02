@@ -1,2150 +1,138 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
-  XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Legend,
-} from "recharts";
-import {
-  TrendingUp, TrendingDown, Wallet, Plus, X, ChevronDown,
-  Banknote, Smartphone, Store, ShoppingCart, LayoutDashboard,
-  Package, Leaf, ChevronRight, Calendar, Hash, Weight,
-  ClipboardList, CheckCircle2, AlertCircle, Trash2, History,
-  Boxes, Star, StarOff, BookMarked, CircleAlert, CheckCheck,
-  Bell, BellRing, ExternalLink,
-  IceCream, Nut, Sparkles, Droplet,
+  Bell,
+  BellRing,
+  CheckCircle2,
+  CircleAlert,
+  AlertCircle,
+  Star,
+  X,
+  Store,
+  LayoutDashboard,
+  BadgeCent,
+  ShoppingCart,
+  ClipboardList,
+  HeartHandshake,
+  ShieldAlert,
+  Users,
+  ChartPie,
+  Settings,
+  Boxes,
+  ExternalLink,
+  Plus,
+  Banknote,
+  Smartphone,
+  Flame,
 } from "lucide-react";
 import Login from "./components/Login";
 import { api } from "./api";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-export type TransactionType = "income" | "expense";
-export type PaymentMethod = "cash" | "gpay";
-export type ShopId = "shop1" | "shop2";
-export type Period = "7d" | "30d" | "90d" | "all";
-export type MainView = "finance" | "purchases" | "commitments" | "stock";
-export type PurchaseCategory = "Fruits & Vegetables" | "Packaging & Plastics" | "Other Supplies" | "Ice Cream" | "Dry Fruits" | "Cleaning Utility" | "Essence";
-export type PurchaseUnit = "kg" | "pcs" | "packets" | "liters" | "dozen" | "boxes";
-export type StockStatus = "none" | "in-stock" | "wanted";
-export type InventoryLevel = "ok" | "low" | "out";
+// Import Modular Types
+import type {
+  ShopId,
+  MainView,
+  Transaction,
+  TransactionType,
+  PaymentMethod,
+  Purchase,
+  Commitment,
+  CommitmentPayment,
+  StockItem,
+  StockStatus,
+  PersonalExpense,
+  Debt,
+  Staff,
+  AttendanceRecord,
+  SalaryPayment,
+} from "./types";
+import { SHOPS } from "./constants";
+import { stockStatus } from "./components/StockView";
 
-export interface Transaction {
-  id: string;
-  type: TransactionType;
-  paymentMethod: PaymentMethod;
-  amount: number;
-  category: string;
-  description: string;
-  date: Date;
-}
+// Views
+import { DashboardView } from "./components/DashboardView";
+import { FinanceView } from "./components/FinanceView"; // Sales Module
+import { PurchasesView } from "./components/PurchasesView";
+import { CommitmentsView } from "./components/CommitmentsView";
+import { PersonalView } from "./components/PersonalView";
+import { DebtView } from "./components/DebtView";
+import { AttendanceView } from "./components/AttendanceView";
+import { ReportsView } from "./components/ReportsView";
+import { SettingsView } from "./components/SettingsView";
+import { StockView } from "./components/StockView";
 
-export interface Purchase {
-  id: string;
-  itemName: string;
-  category: PurchaseCategory;
-  quantity: number;
-  unit: PurchaseUnit;
-  pricePerUnit: number;
-  totalPrice: number;
-  date: Date;
-}
-
-export interface Commitment {
-  id: string;
-  name: string;
-  emoji: string;
-  amount: number;
-  dueDay: number;
-  color: string;
-}
-
-export interface CommitmentPayment {
-  id: string;
-  commitmentId: string;
-  monthKey: string;
-  paidAmount: number;
-  paymentMethod: PaymentMethod;
-  paidDate: Date;
-  note: string;
-}
-
-export interface StockItem {
-  id: string;
-  name: string;
-  category: PurchaseCategory;
-  currentQty: number;
-  unit: PurchaseUnit;
-  minThreshold: number;
-  wanted: boolean;
-  wantedQty: number;
-  wantedNote: string;
-}
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-const USE_DEMO_DATA = false;
-const SHOPS: Record<ShopId, { name: string; color: string; emoji: string }> = {
-  shop1: { name: "Shop 1 — Theppakulam", color: "#1a7a3c", emoji: "🥤" },
-  shop2: { name: "Shop 2 — Anuppanandi", color: "#0ea5e9", emoji: "🍹" },
-};
-
-const PERIOD_LABELS: Record<Period, string> = {
-  "7d": "Last 7 Days", "30d": "Last 30 Days", "90d": "Last 90 Days", all: "All Time",
-};
-
-const PURCHASE_ITEMS: Record<PurchaseCategory, { name: string; unit: PurchaseUnit; basePrice: number }[]> = {
-  "Fruits & Vegetables": [
-    { name: "Watermelon", unit: "pcs", basePrice: 90 },
-    { name: "Papaya", unit: "kg", basePrice: 18 },
-    { name: "Guava", unit: "kg", basePrice: 35 },
-    { name: "Pineapple", unit: "kg", basePrice: 55 },
-    { name: "Grapes", unit: "kg", basePrice: 120 },
-    { name: "Amla", unit: "kg", basePrice: 80 },
-    { name: "Mosambi", unit: "pcs", basePrice: 45 },
-    { name: "Apple", unit: "kg", basePrice: 150 },
-    { name: "Orange", unit: "kg", basePrice: 80 },
-    { name: "Pomegranate", unit: "boxes", basePrice: 250 },
-    { name: "Fig fruit", unit: "boxes", basePrice: 180 },
-    { name: "Red banana", unit: "pcs", basePrice: 10 },
-    { name: "Pacha banana", unit: "pcs", basePrice: 6 },
-    { name: "Nentheram pazham", unit: "pcs", basePrice: 8 },
-    { name: "Musk melon", unit: "pcs", basePrice: 100 },
-    { name: "Lemon", unit: "pcs", basePrice: 4 },
-    { name: "Mint leaves", unit: "packets", basePrice: 15 },
-  ],
-  "Packaging & Plastics": [
-    { name: "300 ml cup with lid", unit: "packets", basePrice: 120 },
-    { name: "350 ml cup with lid", unit: "packets", basePrice: 140 },
-    { name: "750 ml cup", unit: "packets", basePrice: 180 },
-    { name: "Hand gloves", unit: "packets", basePrice: 50 },
-    { name: "Tissue paper", unit: "packets", basePrice: 45 },
-    { name: "Straw", unit: "packets", basePrice: 90 },
-    { name: "spoon", unit: "packets", basePrice: 60 },
-    { name: "PVC fork", unit: "packets", basePrice: 70 },
-    { name: "Big bowl", unit: "packets", basePrice: 200 },
-    { name: "Salad box G plate", unit: "packets", basePrice: 150 },
-    { name: "Printing roll (2 inch)", unit: "packets", basePrice: 80 },
-    { name: "Cellotape roll (1 inch)", unit: "pcs", basePrice: 20 },
-    { name: "Rubber band", unit: "packets", basePrice: 40 },
-    { name: "250ml rc parsal cup", unit: "packets", basePrice: 110 },
-    { name: "Silver cover – 6×9", unit: "kg", basePrice: 130 },
-    { name: "Silver cover – 8×10", unit: "kg", basePrice: 130 },
-    { name: "350ml pet bottele", unit: "pcs", basePrice: 6 },
-  ],
-  "Other Supplies": [
-    { name: "Milk", unit: "liters", basePrice: 60 },
-    { name: "Sugar", unit: "kg", basePrice: 42 },
-    { name: "Curd", unit: "liters", basePrice: 50 },
-    { name: "Ice cubes", unit: "kg", basePrice: 10 },
-    { name: "RO Water", unit: "liters", basePrice: 5 },
-    { name: "Soda", unit: "pcs", basePrice: 20 },
-    { name: "7Up", unit: "pcs", basePrice: 40 },
-    { name: "Oreo", unit: "packets", basePrice: 30 },
-    { name: "KitKat", unit: "boxes", basePrice: 250 },
-    { name: "Boost", unit: "packets", basePrice: 15 },
-    { name: "wipping cream", unit: "packets", basePrice: 180 },
-    { name: "fresh cream", unit: "packets", basePrice: 120 },
-    { name: "custard powder", unit: "pcs", basePrice: 45 },
-  ],
-  "Ice Cream": [
-    { name: "Vanilla", unit: "pcs", basePrice: 150 },
-    { name: "Strawberry", unit: "pcs", basePrice: 160 },
-    { name: "Black currant", unit: "boxes", basePrice: 220 },
-    { name: "Chocolate", unit: "boxes", basePrice: 180 },
-    { name: "Falooda sev", unit: "packets", basePrice: 40 },
-    { name: "Sabja seeds", unit: "kg", basePrice: 280 },
-    { name: "Strawberry jelly", unit: "boxes", basePrice: 90 },
-    { name: "Pineapple jelly", unit: "boxes", basePrice: 90 },
-  ],
-  "Dry Fruits": [
-    { name: "Dry grapes (black and yellow)", unit: "kg", basePrice: 350 },
-    { name: "Cashew", unit: "kg", basePrice: 900 },
-    { name: "Badam", unit: "kg", basePrice: 850 },
-    { name: "Dates", unit: "kg", basePrice: 240 },
-  ],
-  "Cleaning Utility": [
-    { name: "Scrubber", unit: "packets", basePrice: 30 },
-    { name: "Vim bar liquid", unit: "packets", basePrice: 45 },
-    { name: "Cleaning cloth", unit: "packets", basePrice: 40 },
-    { name: "Dustbin cover(small and extra large)", unit: "packets", basePrice: 50 },
-  ],
-  "Essence": [
-    { name: "Rose milk Syrup", unit: "pcs", basePrice: 180 },
-    { name: "Yellow sarbath", unit: "pcs", basePrice: 140 },
-    { name: "Milk sarbath", unit: "pcs", basePrice: 150 },
-    { name: "Red sarbath", unit: "pcs", basePrice: 140 },
-    { name: "Strawberry syrup", unit: "pcs", basePrice: 160 },
-    { name: "Chocolate syrup", unit: "pcs", basePrice: 130 },
-    { name: "Black currant syrup", unit: "pcs", basePrice: 170 },
-    { name: "Butterscotch syrup", unit: "pcs", basePrice: 170 },
-    { name: "Litchi syrup", unit: "pcs", basePrice: 160 },
-    { name: "Blueberry syrup", unit: "pcs", basePrice: 180 },
-    { name: "Mango syrup", unit: "pcs", basePrice: 160 },
-    { name: "Blue curacao (mojito)", unit: "pcs", basePrice: 220 },
-    { name: "Green mint", unit: "pcs", basePrice: 160 },
-    { name: "Jaljira powder", unit: "packets", basePrice: 50 },
-  ],
-};
-
-const ALL_ITEMS_FLAT = Object.entries(PURCHASE_ITEMS).flatMap(([cat, items]) =>
-  items.map((i) => ({ ...i, category: cat as PurchaseCategory }))
-);
-
-const CATEGORY_ICONS: Record<PurchaseCategory, typeof Leaf> = {
-  "Fruits & Vegetables": Leaf,
-  "Packaging & Plastics": Package,
-  "Other Supplies": ShoppingCart,
-  "Ice Cream": IceCream,
-  "Dry Fruits": Nut,
-  "Cleaning Utility": Sparkles,
-  "Essence": Droplet,
-};
-
-const CATEGORY_COLORS_BG: Record<PurchaseCategory, string> = {
-  "Fruits & Vegetables": "#dcfce7",
-  "Packaging & Plastics": "#dbeafe",
-  "Other Supplies": "#fef3c7",
-  "Ice Cream": "#fae8ff",
-  "Dry Fruits": "#ffedd5",
-  "Cleaning Utility": "#e0f2fe",
-  "Essence": "#f3e8ff",
-};
-const CATEGORY_COLORS_TEXT: Record<PurchaseCategory, string> = {
-  "Fruits & Vegetables": "#166534",
-  "Packaging & Plastics": "#1e40af",
-  "Other Supplies": "#92400e",
-  "Ice Cream": "#86198f",
-  "Dry Fruits": "#9a3412",
-  "Cleaning Utility": "#0369a1",
-  "Essence": "#6b21a8",
-};
-
-const INCOME_CATEGORIES = ["Full Day Income"];
-const EXPENSE_CATEGORIES = ["Fruits & Produce", "Equipment", "Rent", "Utilities", "Staff Wages", "Packaging", "Marketing", "Miscellaneous"];
-
-const CATEGORY_COLORS: Record<string, string> = {
-  "Full Day Income": "#1a7a3c",
-  "Fresh Juices": "#1a7a3c", Smoothies: "#34d399", "Shots & Boosters": "#a3e635",
-  "Combo Meals": "#fbbf24", Catering: "#f97316", "Online Orders": "#60a5fa",
-  "Fruits & Produce": "#ef4444", Equipment: "#8b5cf6", Rent: "#ec4899",
-  Utilities: "#f59e0b", "Staff Wages": "#0ea5e9", Packaging: "#14b8a6",
-  Marketing: "#e879f9", Miscellaneous: "#94a3b8",
-};
-
-// ─── Seed Data Generators ─────────────────────────────────────────────────────
-function generateTransactions(shopId: ShopId): Transaction[] {
-  const txns: Transaction[] = [];
-  const now = new Date();
-  const incomeTemplates = [
-    { category: "Full Day Income", descriptions: ["Full Day Sales"] },
-  ];
-  const expenseTemplates = [
-    { category: "Rent", descriptions: ["Monthly shop rent"] },
-    { category: "Utilities", descriptions: ["Electricity bill", "Water bill"] },
-    { category: "Staff Wages", descriptions: ["Part-time staff pay", "Delivery staff wages"] },
-    { category: "Marketing", descriptions: ["Instagram ad boost", "Menu printing"] },
-  ];
-  const seed = shopId === "shop1" ? 1 : 7;
-  let id = shopId === "shop1" ? 1000 : 5000;
-  for (let d = 90; d >= 0; d--) {
-    const date = new Date(now); date.setDate(now.getDate() - d);
-    const ic = Math.floor(((d * seed * 13) % 4)) + 2;
-    for (let i = 0; i < ic; i++) {
-      const tmpl = incomeTemplates[(d * seed + i * 3) % incomeTemplates.length];
-      const desc = tmpl.descriptions[(d + i * seed) % tmpl.descriptions.length];
-      const amount = (((d * seed + i * 17) % 38) + 4) * 100;
-      const txDate = new Date(date); txDate.setHours(((d + i * seed) % 12) + 8);
-      const paymentMethod: PaymentMethod = (d + i + seed) % 3 === 0 ? "gpay" : "cash";
-      txns.push({ id: String(id++), type: "income", paymentMethod, amount, category: tmpl.category, description: desc, date: txDate });
-    }
-    const ec = Math.floor(((d * seed * 7) % 2)) + 1;
-    for (let i = 0; i < ec; i++) {
-      const tmpl = expenseTemplates[(d * seed + i * 5) % expenseTemplates.length];
-      const desc = tmpl.descriptions[(d + i) % tmpl.descriptions.length];
-      const amount = (((d * seed + i * 11) % 22) + 2) * 100;
-      const txDate = new Date(date); txDate.setHours(((d + i * seed * 2) % 12) + 8);
-      const paymentMethod: PaymentMethod = (d + i * seed) % 4 === 0 ? "gpay" : "cash";
-      txns.push({ id: String(id++), type: "expense", paymentMethod, amount, category: tmpl.category, description: desc, date: txDate });
-    }
-  }
-  return txns.sort((a, b) => b.date.getTime() - a.date.getTime());
-}
-
-function generatePurchases(shopId: ShopId): Purchase[] {
-  const purchases: Purchase[] = [];
-  const now = new Date();
-  const seed = shopId === "shop1" ? 3 : 11;
-  let id = shopId === "shop1" ? 9000 : 19000;
-
-  for (let d = 90; d >= 0; d--) {
-    const date = new Date(now); date.setDate(now.getDate() - d);
-    const count = Math.floor(((d * seed * 5) % 4)) + 1;
-    for (let i = 0; i < count; i++) {
-      const item = ALL_ITEMS_FLAT[(d * seed + i * 7) % ALL_ITEMS_FLAT.length];
-      const qty = parseFloat((((d * seed + i * 13) % 20) + 1).toFixed(1));
-      const ppu = item.basePrice * (1 + ((d + i * seed) % 20 - 10) / 100);
-      const txDate = new Date(date); txDate.setHours(((d + i * seed) % 10) + 7);
-      purchases.push({
-        id: String(id++),
-        itemName: item.name,
-        category: item.category,
-        quantity: qty,
-        unit: item.unit,
-        pricePerUnit: Math.round(ppu * 10) / 10,
-        totalPrice: Math.round(qty * ppu),
-        date: txDate,
-      });
-    }
-  }
-  return purchases.sort((a, b) => b.date.getTime() - a.date.getTime());
-}
-
+// Setup Initial empty collections
 const INITIAL_TRANSACTIONS: Record<ShopId, Transaction[]> = {
-  shop1: USE_DEMO_DATA ? generateTransactions("shop1") : [],
-  shop2: USE_DEMO_DATA ? generateTransactions("shop2") : [],
+  shop1: [],
+  shop2: [],
 };
 const INITIAL_PURCHASES: Record<ShopId, Purchase[]> = {
-  shop1: USE_DEMO_DATA ? generatePurchases("shop1") : [],
-  shop2: USE_DEMO_DATA ? generatePurchases("shop2") : [],
+  shop1: [],
+  shop2: [],
 };
-
-// ─── Commitment Seed Data ─────────────────────────────────────────────────────
 const INITIAL_COMMITMENTS: Record<ShopId, Commitment[]> = {
-  shop1: [
-    { id: "c1", name: "Shop Rent", emoji: "🏪", amount: 25000, dueDay: 1, color: "#7c3aed" },
-    { id: "c2", name: "EB Bill", emoji: "⚡", amount: 3500, dueDay: 10, color: "#f59e0b" },
-    { id: "c3", name: "Staff Salary", emoji: "👨‍💼", amount: 18000, dueDay: 1, color: "#0ea5e9" },
-    { id: "c4", name: "Chit Amount", emoji: "📋", amount: 5000, dueDay: 5, color: "#10b981" },
-    { id: "c5", name: "Water Bill", emoji: "💧", amount: 600, dueDay: 15, color: "#06b6d4" },
-    { id: "c6", name: "Internet Bill", emoji: "📶", amount: 999, dueDay: 20, color: "#6366f1" },
-  ],
-  shop2: [
-    { id: "d1", name: "Shop Rent", emoji: "🏪", amount: 30000, dueDay: 1, color: "#7c3aed" },
-    { id: "d2", name: "EB Bill", emoji: "⚡", amount: 4200, dueDay: 10, color: "#f59e0b" },
-    { id: "d3", name: "Staff Salary", emoji: "👨‍💼", amount: 20000, dueDay: 1, color: "#0ea5e9" },
-    { id: "d4", name: "Chit Amount", emoji: "📋", amount: 5000, dueDay: 5, color: "#10b981" },
-    { id: "d5", name: "Water Bill", emoji: "💧", amount: 600, dueDay: 15, color: "#06b6d4" },
-    { id: "d6", name: "Internet Bill", emoji: "📶", amount: 999, dueDay: 20, color: "#6366f1" },
-    { id: "d7", name: "LPG / Gas", emoji: "🔥", amount: 1800, dueDay: 12, color: "#ef4444" },
-  ],
+  shop1: [],
+  shop2: [],
 };
-
-function generateCommitmentPayments(shopId: ShopId, commitments: Commitment[]): CommitmentPayment[] {
-  const payments: CommitmentPayment[] = [];
-  const now = new Date();
-  let id = shopId === "shop1" ? 80000 : 90000;
-
-  for (let m = 5; m >= 0; m--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - m, 1);
-    const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const isCurrent = m === 0;
-
-    commitments.forEach((c, ci) => {
-      const skipPayment = isCurrent && (ci === 1 || ci === 4);
-      if (skipPayment) return;
-
-      const paidDay = c.dueDay + Math.floor((ci * 3) % 5);
-      const paidDate = new Date(d.getFullYear(), d.getMonth(), Math.min(paidDay, 28));
-      const variation = 1 + ((ci * m * 7) % 10 - 5) / 100;
-      const paidAmount = Math.round(c.amount * variation);
-      const pm: PaymentMethod = (ci + m) % 3 === 0 ? "gpay" : "cash";
-
-      payments.push({
-        id: String(id++),
-        commitmentId: c.id,
-        monthKey: mk,
-        paidAmount,
-        paymentMethod: pm,
-        paidDate,
-        note: "",
-      });
-    });
-  }
-  return payments;
-}
-
 const INITIAL_COMMITMENT_PAYMENTS: Record<ShopId, CommitmentPayment[]> = {
-  shop1: USE_DEMO_DATA ? generateCommitmentPayments("shop1", INITIAL_COMMITMENTS.shop1) : [],
-  shop2: USE_DEMO_DATA ? generateCommitmentPayments("shop2", INITIAL_COMMITMENTS.shop2) : [],
+  shop1: [],
+  shop2: [],
 };
-
-// ─── Stock Seed Data ──────────────────────────────────────────────────────────
-function buildStockList(seed: number): StockItem[] {
-  let counter = 1;
-  const items: StockItem[] = Object.entries(PURCHASE_ITEMS).flatMap(([cat, productList]) => {
-    return productList.map((p) => {
-      const id = `s${seed}${counter++}`;
-      // Generate realistic deterministic quantities and thresholds
-      const hash = (p.name.charCodeAt(0) + p.name.charCodeAt(p.name.length - 1)) || 10;
-      let currentQty = USE_DEMO_DATA ? ((hash % 12) + 2) : 0;
-      let minThreshold = USE_DEMO_DATA ? (Math.floor(currentQty * 0.7) + 1) : 0;
-      let wanted = USE_DEMO_DATA ? (hash % 8 === 0) : false;
-      let wantedQty = USE_DEMO_DATA ? (Math.floor(minThreshold * 1.8) + 2) : 0;
-      let wantedNote = "";
-
-      // Realistic overrides for specific items
-      if (USE_DEMO_DATA) {
-        if (p.name === "Watermelon") {
-          currentQty = seed === 1 ? 12 : 8;
-          minThreshold = 10;
-          wanted = false;
-        } else if (p.name === "Mango Syrup") {
-          currentQty = seed === 1 ? 4 : 10;
-          minThreshold = 8;
-          wanted = (seed === 1);
-          wantedNote = wanted ? "Need before weekend" : "";
-        } else if (p.name === "Lemon") {
-          currentQty = seed === 1 ? 25 : 15;
-          minThreshold = 20;
-          wanted = (seed === 2);
-        } else if (p.name === "300 ml cup with lid") {
-          currentQty = seed === 1 ? 3 : 1;
-          minThreshold = 5;
-          wanted = true;
-        }
-      }
-
-      return {
-        id,
-        name: p.name,
-        category: cat as PurchaseCategory,
-        currentQty,
-        unit: p.unit,
-        minThreshold,
-        wanted,
-        wantedQty,
-        wantedNote,
-      };
-    });
-  });
-  return items;
-}
-
 const INITIAL_STOCK: Record<ShopId, StockItem[]> = {
-  shop1: buildStockList(1),
-  shop2: buildStockList(2),
+  shop1: [],
+  shop2: [],
 };
 
-function mkFromDate(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-function mkLabel(mk: string) {
-  const [y, m] = mk.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function fmt(n: number) { return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 }); }
-function fmtShort(n: number) {
-  if (n >= 100000) return "₹" + (n / 100000).toFixed(1) + "L";
-  if (n >= 1000) return "₹" + (n / 1000).toFixed(1) + "K";
-  return "₹" + n;
-}
-function monthKey(d: Date) { return `${d.getFullYear()}-${d.getMonth()}`; }
-
-// ─── Item Detail Modal ────────────────────────────────────────────────────────
-function ItemDetailModal({
-  itemName, purchases, onClose,
-}: { itemName: string; purchases: Purchase[]; onClose: () => void }) {
-  const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(monthKey(now));
-
-  const months = useMemo(() => {
-    const set = new Set<string>();
-    purchases.forEach((p) => set.add(monthKey(p.date)));
-    return Array.from(set).sort((a, b) => b.localeCompare(a)).slice(0, 6);
-  }, [purchases]);
-
-  const monthLabel = (mk: string) => {
-    const [y, m] = mk.split("-").map(Number);
-    return new Date(y, m, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-  };
-
-  const filtered = useMemo(
-    () => purchases.filter((p) => monthKey(p.date) === selectedMonth),
-    [purchases, selectedMonth]
-  );
-
-  const totalQty = filtered.reduce((s, p) => s + p.quantity, 0);
-  const totalSpent = filtered.reduce((s, p) => s + p.totalPrice, 0);
-  const unit = filtered[0]?.unit ?? "";
-  const item = ALL_ITEMS_FLAT.find((i) => i.name === itemName);
-  const CatIcon = item ? CATEGORY_ICONS[item.category] : Package;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-border flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
-              <CatIcon size={18} className="text-green-700" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold">{itemName}</h3>
-              <p className="text-xs text-muted-foreground">{item?.category}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Month selector */}
-        <div className="px-5 pt-4 flex-shrink-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            {months.map((mk) => (
-              <button
-                key={mk}
-                onClick={() => setSelectedMonth(mk)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
-                  selectedMonth === mk
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted text-muted-foreground border-transparent hover:border-border"
-                }`}
-              >
-                {monthLabel(mk)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="px-5 pt-4 grid grid-cols-3 gap-3 flex-shrink-0">
-          <div className="bg-muted rounded-xl p-3 text-center">
-            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-              <Hash size={12} /><span className="text-xs font-semibold">Times Bought</span>
-            </div>
-            <p className="text-2xl font-bold font-[DM_Mono,monospace] text-foreground">{filtered.length}</p>
-          </div>
-          <div className="bg-muted rounded-xl p-3 text-center">
-            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-              <Weight size={12} /><span className="text-xs font-semibold">Total Qty</span>
-            </div>
-            <p className="text-2xl font-bold font-[DM_Mono,monospace] text-foreground">
-              {totalQty % 1 === 0 ? totalQty : totalQty.toFixed(1)}
-            </p>
-            <p className="text-xs text-muted-foreground">{unit}</p>
-          </div>
-          <div className="bg-primary/10 rounded-xl p-3 text-center">
-            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-              <Wallet size={12} /><span className="text-xs font-semibold">Total Spent</span>
-            </div>
-            <p className="text-2xl font-bold font-[DM_Mono,monospace] text-primary">{fmtShort(totalSpent)}</p>
-            <p className="text-xs text-muted-foreground">{fmt(totalSpent)}</p>
-          </div>
-        </div>
-
-        {/* Purchase history */}
-        <div className="flex-1 overflow-y-auto px-5 pb-5 pt-4">
-          {filtered.length === 0 ? (
-            <p className="text-center text-muted-foreground text-sm py-6">No purchases in {monthLabel(selectedMonth)}.</p>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Purchase History</p>
-              {filtered.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl">
-                  <div className="flex items-center gap-1 text-muted-foreground w-20 flex-shrink-0">
-                    <Calendar size={11} />
-                    <span className="text-xs">{p.date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</span>
-                  </div>
-                  <div className="flex-1 text-xs text-foreground font-medium font-[DM_Mono,monospace]">
-                    {p.quantity % 1 === 0 ? p.quantity : p.quantity.toFixed(1)} {p.unit}
-                  </div>
-                  <div className="text-xs text-muted-foreground font-[DM_Mono,monospace]">
-                    ₹{p.pricePerUnit}/{p.unit}
-                  </div>
-                  <div className="text-xs font-bold text-primary font-[DM_Mono,monospace] w-16 text-right">
-                    {fmt(p.totalPrice)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Stock List Column ──────────────────────────────────────────────────────────
-function StockListColumn({
-  shopId,
-  stockList,
-  customItems,
-  onToggle,
-  onAddCustomItem,
-  onRemoveCustomItem,
-}: {
-  shopId: ShopId;
-  stockList: Record<string, StockStatus>;
-  customItems: string[];
-  onToggle: (itemName: string) => void;
-  onAddCustomItem: (name: string) => void;
-  onRemoveCustomItem: (name: string) => void;
-}) {
-  const shop = SHOPS[shopId];
-  const [newItem, setNewItem] = useState("");
-
-  // Gather all items: preset + custom
-  const allTracked = [
-    ...ALL_ITEMS_FLAT.map((i) => i.name),
-    ...customItems,
-  ];
-  const wantedItems = allTracked.filter((name) => stockList[name] === "wanted");
-  const inStockItems = allTracked.filter((name) => stockList[name] === "in-stock");
-
-  function handleAdd() {
-    const trimmed = newItem.trim();
-    if (!trimmed) return;
-    onAddCustomItem(trimmed);
-    setNewItem("");
-  }
-
-  return (
-    <div className="lg:w-72 flex-shrink-0">
-      <div className="bg-card rounded-2xl border border-border shadow-sm sticky top-4 flex flex-col" style={{ maxHeight: "calc(100vh - 6rem)" }}>
-
-        {/* Header */}
-        <div className="flex items-center gap-2 px-5 pt-5 pb-3 border-b border-border flex-shrink-0">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: shop.color + "20" }}>
-            <ClipboardList size={14} style={{ color: shop.color }} />
-          </div>
-          <h2 className="text-sm font-bold flex-1">Stock List</h2>
-          <div className="flex gap-2">
-            <div className="text-center">
-              <span className="text-xs font-bold text-green-700">{inStockItems.length}</span>
-              <span className="text-[10px] text-muted-foreground ml-0.5">✅</span>
-            </div>
-            <div className="text-center">
-              <span className="text-xs font-bold text-amber-600">{wantedItems.length}</span>
-              <span className="text-[10px] text-muted-foreground ml-0.5">⭐</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Wanted Reminder Banner — removed; global banner handles this */}
-
-        {/* Add new item input */}
-        <div className="px-4 pt-3 pb-2 flex-shrink-0">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Add item to track…"
-              value={newItem}
-              onChange={(e) => setNewItem(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              className="flex-1 bg-muted rounded-xl px-3 py-2 text-xs border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <button
-              onClick={handleAdd}
-              disabled={!newItem.trim()}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-white disabled:opacity-40 transition-opacity hover:opacity-90 flex-shrink-0"
-              style={{ backgroundColor: shop.color }}
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1.5">Tap item to cycle: ⬜ → ✅ → ⭐ → ⬜</p>
-        </div>
-
-        {/* Scrollable item list */}
-        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
-
-          {/* Custom items section */}
-          {customItems.length > 0 && (
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: shop.color }}>
-                Custom Items
-              </p>
-              <div className="space-y-1">
-                {customItems.map((name) => {
-                  const status = stockList[name] ?? "none";
-                  return (
-                    <div
-                      key={name}
-                      className="flex items-center gap-1"
-                    >
-                      <button
-                        onClick={() => onToggle(name)}
-                        className="flex-1 flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition-all"
-                        style={{
-                          backgroundColor:
-                            status === "in-stock" ? "#dcfce7"
-                            : status === "wanted" ? "#fef3c7"
-                            : "var(--muted)",
-                          border:
-                            status === "in-stock" ? "1px solid #86efac"
-                            : status === "wanted" ? "1px solid #fde68a"
-                            : "1px solid transparent",
-                        }}
-                      >
-                        <span className="text-sm flex-shrink-0">
-                          {status === "in-stock" ? "✅" : status === "wanted" ? "⭐" : "⬜"}
-                        </span>
-                        <span
-                          className="text-xs font-semibold flex-1 truncate"
-                          style={{
-                            color:
-                              status === "in-stock" ? "#166534"
-                              : status === "wanted" ? "#92400e"
-                              : "var(--muted-foreground)",
-                          }}
-                        >
-                          {name}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => onRemoveCustomItem(name)}
-                        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors flex-shrink-0"
-                      >
-                        <X size={11} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Preset items by category */}
-          {(Object.entries(PURCHASE_ITEMS) as [PurchaseCategory, typeof ALL_ITEMS_FLAT[0][]][]).map(([cat, items]) => (
-            <div key={cat}>
-              <p
-                className="text-[10px] font-bold uppercase tracking-widest mb-2"
-                style={{ color: CATEGORY_COLORS_TEXT[cat] }}
-              >
-                {cat}
-              </p>
-              <div className="space-y-1">
-                {items.map((item) => {
-                  const status = stockList[item.name] ?? "none";
-                  return (
-                    <button
-                      key={item.name}
-                      onClick={() => onToggle(item.name)}
-                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition-all"
-                      style={{
-                        backgroundColor:
-                          status === "in-stock" ? "#dcfce7"
-                          : status === "wanted" ? "#fef3c7"
-                          : "var(--muted)",
-                        border:
-                          status === "in-stock" ? "1px solid #86efac"
-                          : status === "wanted" ? "1px solid #fde68a"
-                          : "1px solid transparent",
-                      }}
-                    >
-                      <span className="text-sm flex-shrink-0">
-                        {status === "in-stock" ? "✅" : status === "wanted" ? "⭐" : "⬜"}
-                      </span>
-                      <span
-                        className="text-xs font-semibold flex-1 truncate"
-                        style={{
-                          color:
-                            status === "in-stock" ? "#166534"
-                            : status === "wanted" ? "#92400e"
-                            : "var(--muted-foreground)",
-                        }}
-                      >
-                        {item.name}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Purchases View ────────────────────────────────────────────────────────────
-function PurchasesView({
-  shopId, purchases, onAdd, stockList, onStockToggle, customItems, onAddCustomItem, onRemoveCustomItem,
-}: {
-  shopId: ShopId;
-  purchases: Purchase[];
-  onAdd: (p: Purchase) => void;
-  stockList: Record<string, StockStatus>;
-  onStockToggle: (itemName: string) => void;
-  customItems: string[];
-  onAddCustomItem: (name: string) => void;
-  onRemoveCustomItem: (name: string) => void;
-}) {
-  const shop = SHOPS[shopId];
-
-  // Form state
-  const [formItem, setFormItem] = useState("");
-  const [formCat, setFormCat] = useState<PurchaseCategory>("Fruits & Vegetables");
-  const [formQty, setFormQty] = useState("");
-  const [formUnit, setFormUnit] = useState<PurchaseUnit>("kg");
-  const [formPpu, setFormPpu] = useState("");
-  const [formDate, setFormDate] = useState(new Date().toISOString().split("T")[0]);
-  const [customItem, setCustomItem] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<string | null>(null);
-
-  const now = new Date();
-  const currentMonthKey = monthKey(now);
-
-  // Group purchases by item for the current month summary
-  const itemSummary = useMemo(() => {
-    const map: Record<string, { count: number; totalQty: number; totalPrice: number; unit: string; category: PurchaseCategory; allPurchases: Purchase[] }> = {};
-    purchases.forEach((p) => {
-      if (!map[p.itemName]) map[p.itemName] = { count: 0, totalQty: 0, totalPrice: 0, unit: p.unit, category: p.category, allPurchases: [] };
-      map[p.itemName].allPurchases.push(p);
-      if (monthKey(p.date) === currentMonthKey) {
-        map[p.itemName].count += 1;
-        map[p.itemName].totalQty += p.quantity;
-        map[p.itemName].totalPrice += p.totalPrice;
-      }
-    });
-    return Object.entries(map)
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.totalPrice - a.totalPrice);
-  }, [purchases, currentMonthKey]);
-
-  const byCategory = useMemo(() => {
-    const cats: Record<PurchaseCategory, typeof itemSummary> = {
-      "Fruits & Vegetables": [],
-      "Packaging & Plastics": [],
-      "Other Supplies": [],
-      "Ice Cream": [],
-      "Dry Fruits": [],
-      "Cleaning Utility": [],
-      "Essence": [],
-    };
-    itemSummary.forEach((item) => {
-      const cat = cats[item.category] ? item.category : "Other Supplies";
-      cats[cat].push(item);
-    });
-    return cats;
-  }, [itemSummary]);
-
-  const thisMonthTotal = useMemo(
-    () => purchases.filter((p) => monthKey(p.date) === currentMonthKey).reduce((s, p) => s + p.totalPrice, 0),
-    [purchases, currentMonthKey]
-  );
-
-  const catItems = PURCHASE_ITEMS[formCat];
-
-  function handleItemSelect(name: string) {
-    const item = ALL_ITEMS_FLAT.find((i) => i.name === name);
-    if (item) {
-      setFormUnit(item.unit);
-      const qty = parseFloat(formQty) || 1;
-      if (!formQty) setFormQty("1");
-      setFormPpu(String(item.basePrice * qty));
-    }
-    setFormItem(name);
-  }
-
-  function handleCatChange(cat: PurchaseCategory) {
-    setFormCat(cat);
-    setFormItem("");
-    setFormPpu("");
-    setCustomItem(false);
-  }
-
-  function submit() {
-    if (!formItem || !formQty || !formPpu) return;
-    const qty = parseFloat(formQty);
-    const totalPrice = parseFloat(formPpu);
-    const ppu = totalPrice / qty;
-    onAdd({
-      id: Date.now().toString(),
-      itemName: formItem,
-      category: formCat,
-      quantity: qty,
-      unit: formUnit,
-      pricePerUnit: Math.round(ppu * 100) / 100,
-      totalPrice: Math.round(totalPrice),
-      date: new Date(formDate),
-    });
-    setFormItem(""); setFormQty(""); setFormPpu("");
-    setFormDate(new Date().toISOString().split("T")[0]);
-    setCustomItem(false);
-  }
-
-  return (
-    <div className="flex flex-col lg:flex-row gap-5">
-      {/* LEFT: Add Purchase Form */}
-      <div className="lg:w-80 flex-shrink-0">
-        <div className="bg-card rounded-2xl border border-border shadow-sm p-5 sticky top-4">
-          <div className="flex items-center gap-2 mb-5">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: shop.color + "20" }}>
-              <Plus size={14} style={{ color: shop.color }} />
-            </div>
-            <h2 className="text-sm font-bold">Add Purchase</h2>
-          </div>
-
-          <div className="space-y-4">
-            {/* Category */}
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Category</label>
-              <div className="flex flex-col gap-1.5">
-                {(Object.keys(PURCHASE_ITEMS) as PurchaseCategory[]).map((cat) => {
-                  const Icon = CATEGORY_ICONS[cat];
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => handleCatChange(cat)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all border text-left ${
-                        formCat === cat
-                          ? "border-current"
-                          : "bg-muted border-transparent text-muted-foreground hover:text-foreground"
-                      }`}
-                      style={formCat === cat ? { color: CATEGORY_COLORS_TEXT[cat], backgroundColor: CATEGORY_COLORS_BG[cat], borderColor: CATEGORY_COLORS_TEXT[cat] + "40" } : {}}
-                    >
-                      <Icon size={13} /> {cat}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Item */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-muted-foreground">Item</label>
-                <button
-                  onClick={() => { setCustomItem(!customItem); setFormItem(""); }}
-                  className="text-xs text-primary font-medium hover:underline"
-                >
-                  {customItem ? "Pick from list" : "+ Custom item"}
-                </button>
-              </div>
-              {customItem ? (
-                <input
-                  type="text" placeholder="e.g. Dragon Fruit" value={formItem}
-                  onChange={(e) => setFormItem(e.target.value)}
-                  className="w-full bg-input-background rounded-xl px-3 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              ) : (
-                <div className="relative">
-                  <select
-                    value={formItem} onChange={(e) => handleItemSelect(e.target.value)}
-                    className="w-full bg-input-background rounded-xl px-3 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring appearance-none"
-                  >
-                    <option value="">Select item…</option>
-                    {catItems.map((i) => <option key={i.name} value={i.name}>{i.name}</option>)}
-                  </select>
-                  <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
-              )}
-            </div>
-
-            {/* Qty + Unit */}
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Quantity</label>
-                <input
-                  type="number" placeholder="0" value={formQty}
-                  onChange={(e) => setFormQty(e.target.value)}
-                  className="w-full bg-input-background rounded-xl px-3 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-              <div className="w-24">
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Unit</label>
-                <div className="relative">
-                  <select
-                    value={formUnit} onChange={(e) => setFormUnit(e.target.value as PurchaseUnit)}
-                    className="w-full bg-input-background rounded-xl px-2 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring appearance-none"
-                  >
-                    {(["kg", "pcs", "packets", "liters", "dozen", "boxes"] as PurchaseUnit[]).map((u) => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Total Amount Spent */}
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Total Amount Spent (₹)</label>
-              <input
-                type="number" placeholder="0.00" value={formPpu}
-                onChange={(e) => setFormPpu(e.target.value)}
-                className="w-full bg-input-background rounded-xl px-3 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              {formQty && formPpu && (
-                <p className="text-xs text-primary font-semibold mt-1.5 font-[DM_Mono,monospace]">
-                  Price per {formUnit || "unit"}: {fmt(Math.round((parseFloat(formPpu) / parseFloat(formQty)) * 100) / 100)}
-                </p>
-              )}
-            </div>
-
-            {/* Date */}
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Date</label>
-              <input
-                type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)}
-                className="w-full bg-input-background rounded-xl px-3 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            <button
-              onClick={submit}
-              disabled={!formItem || !formQty || !formPpu}
-              className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: shop.color }}
-            >
-              Save Purchase
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* RIGHT: Item List */}
-      <div className="flex-1 space-y-5">
-        {/* This month total */}
-        <div className="bg-card rounded-2xl border border-border shadow-sm p-5 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              {new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" })} — Total Spend
-            </p>
-            <p className="text-2xl font-bold font-[DM_Mono,monospace] text-foreground mt-1">{fmt(thisMonthTotal)}</p>
-          </div>
-          <div className="text-3xl">{shop.emoji}</div>
-        </div>
-
-        {/* By category */}
-        {(Object.keys(PURCHASE_ITEMS) as PurchaseCategory[]).map((cat) => {
-          const Icon = CATEGORY_ICONS[cat];
-          const items = byCategory[cat];
-          if (items.length === 0) return null;
-          const catTotal = items.reduce((s, i) => s + i.totalPrice, 0);
-          return (
-            <div key={cat} className="bg-card rounded-2xl border border-border shadow-sm p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: CATEGORY_COLORS_BG[cat] }}>
-                    <Icon size={14} style={{ color: CATEGORY_COLORS_TEXT[cat] }} />
-                  </div>
-                  <h3 className="text-sm font-bold">{cat}</h3>
-                </div>
-                <span className="text-xs font-bold font-[DM_Mono,monospace] text-muted-foreground">
-                  {fmt(catTotal)} this month
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                {items.map((item) => (
-                  <button
-                    key={item.name}
-                    onClick={() => setSelectedItem(item.name)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/70 transition-colors text-left group border border-transparent hover:border-border"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground">{item.name}</p>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        {item.count > 0 ? (
-                          <>
-                            <span className="text-xs text-muted-foreground">
-                              <span className="font-[DM_Mono,monospace] font-semibold text-foreground">{item.count}×</span> this month
-                            </span>
-                            <span className="text-muted-foreground/40">·</span>
-                            <span className="text-xs text-muted-foreground">
-                              <span className="font-[DM_Mono,monospace] font-semibold text-foreground">
-                                {item.totalQty % 1 === 0 ? item.totalQty : item.totalQty.toFixed(1)} {item.unit}
-                              </span>
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-xs text-muted-foreground/60">No purchases this month</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      {item.count > 0 && (
-                        <p className="text-sm font-bold font-[DM_Mono,monospace] text-primary">{fmt(item.totalPrice)}</p>
-                      )}
-                      <ChevronRight size={14} className="text-muted-foreground group-hover:text-foreground transition-colors ml-auto mt-0.5" />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Item Detail Modal */}
-      {selectedItem && (
-        <ItemDetailModal
-          itemName={selectedItem}
-          purchases={purchases.filter((p) => p.itemName === selectedItem)}
-          onClose={() => setSelectedItem(null)}
-        />
-      )}
-
-      {/* Stock List Column */}
-      <StockListColumn
-        shopId={shopId}
-        stockList={stockList}
-        customItems={customItems}
-        onToggle={onStockToggle}
-        onAddCustomItem={onAddCustomItem}
-        onRemoveCustomItem={onRemoveCustomItem}
-      />
-    </div>
-  );
-}
-
-// ─── Stock View ──────────────────────────────────────────────────────────────
-function stockStatus(item: StockItem): InventoryLevel {
-  if (item.currentQty <= 0) return "out";
-  if (item.currentQty < item.minThreshold) return "low";
-  return "ok";
-}
-
-const STATUS_CONFIG: Record<InventoryLevel, { label: string; bg: string; text: string; border: string }> = {
-  ok:  { label: "In Stock",  bg: "#f0fdf4", text: "#16a34a", border: "#bbf7d0" },
-  low: { label: "Low",       bg: "#fffbeb", text: "#b45309", border: "#fde68a" },
-  out: { label: "Out",       bg: "#fef2f2", text: "#dc2626", border: "#fecaca" },
-};
-
-function StockView({
-  shopId, stock, onUpdate,
-}: {
-  shopId: ShopId;
-  stock: StockItem[];
-  onUpdate: (items: StockItem[]) => void;
-}) {
-  const shop = SHOPS[shopId];
-  const [search, setSearch] = useState("");
-  const [filterCat, setFilterCat] = useState<PurchaseCategory | "all">("all");
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editQtyId, setEditQtyId] = useState<string | null>(null);
-  const [editQtyVal, setEditQtyVal] = useState("");
-  const [editWantedQtyId, setEditWantedQtyId] = useState<string | null>(null);
-  const [editWantedQtyVal, setEditWantedQtyVal] = useState("");
-
-  // Add form
-  const [fName, setFName] = useState("");
-  const [fCat, setFCat] = useState<PurchaseCategory>("Fruits & Vegetables");
-  const [fQty, setFQty] = useState("");
-  const [fUnit, setFUnit] = useState<PurchaseUnit>("kg");
-  const [fMin, setFMin] = useState("");
-
-  function update(id: string, patch: Partial<StockItem>) {
-    onUpdate(stock.map((s) => s.id === id ? { ...s, ...patch } : s));
-  }
-
-  function toggleWanted(id: string) {
-    const item = stock.find((s) => s.id === id)!;
-    update(id, { wanted: !item.wanted });
-  }
-
-  function removeItem(id: string) {
-    onUpdate(stock.filter((s) => s.id !== id));
-  }
-
-  function clearAllWanted() {
-    onUpdate(stock.map((s) => ({ ...s, wanted: false })));
-  }
-
-  function submitAdd() {
-    if (!fName || !fQty) return;
-    const newItem: StockItem = {
-      id: Date.now().toString(),
-      name: fName,
-      category: fCat,
-      currentQty: parseFloat(fQty),
-      unit: fUnit,
-      minThreshold: fMin ? parseFloat(fMin) : 0,
-      wanted: false,
-      wantedQty: 1,
-      wantedNote: "",
-    };
-    onUpdate([...stock, newItem]);
-    setFName(""); setFQty(""); setFMin(""); setShowAddForm(false);
-  }
-
-  const filteredStock = useMemo(() => {
-    return stock.filter((s) => {
-      const matchCat = filterCat === "all" || s.category === filterCat;
-      const matchSearch = s.name.toLowerCase().includes(search.toLowerCase());
-      return matchCat && matchSearch;
-    });
-  }, [stock, filterCat, search]);
-
-  const byCategory = useMemo(() => {
-    const cats: Record<string, StockItem[]> = {};
-    filteredStock.forEach((s) => {
-      if (!cats[s.category]) cats[s.category] = [];
-      cats[s.category].push(s);
-    });
-    return cats;
-  }, [filteredStock]);
-
-  const wantedItems = useMemo(() => stock.filter((s) => s.wanted), [stock]);
-  const outCount = stock.filter((s) => stockStatus(s) === "out").length;
-  const lowCount = stock.filter((s) => stockStatus(s) === "low").length;
-
-  const CAT_ICONS: Record<string, typeof Leaf> = {
-    "Fruits & Vegetables": Leaf,
-    "Packaging & Plastics": Package,
-    "Other Supplies": ShoppingCart,
-    "Ice Cream": IceCream,
-    "Dry Fruits": Nut,
-    "Cleaning Utility": Sparkles,
-    "Essence": Droplet,
-  };
-
-  return (
-    <div className="flex flex-col lg:flex-row gap-5">
-      {/* LEFT: Stock List */}
-      <div className="flex-1 space-y-4">
-        {/* Summary + controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            {outCount > 0 && (
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold" style={{ backgroundColor: "#fef2f2", color: "#dc2626" }}>
-                <CircleAlert size={12} /> {outCount} Out of stock
-              </span>
-            )}
-            {lowCount > 0 && (
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold" style={{ backgroundColor: "#fffbeb", color: "#b45309" }}>
-                <AlertCircle size={12} /> {lowCount} Low stock
-              </span>
-            )}
-          </div>
-          <button onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: shop.color }}
-          ><Plus size={14} /> Add Item</button>
-        </div>
-
-        {/* Search + filter */}
-        <div className="flex gap-2 flex-wrap">
-          <input
-            type="text" placeholder="Search items…" value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 min-w-40 bg-card rounded-xl px-4 py-2 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <div className="flex gap-1 bg-muted rounded-xl p-1">
-            {(["all", ...Object.keys(PURCHASE_ITEMS)] as (PurchaseCategory | "all")[]).map((cat) => (
-              <button key={cat} onClick={() => setFilterCat(cat)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all capitalize ${filterCat === cat ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"}`}
-              >{cat === "all" ? "All" : cat.split(" ")[0]}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Stock by category */}
-        {Object.entries(byCategory).map(([cat, items]) => {
-          const Icon = CAT_ICONS[cat] || Package;
-          return (
-            <div key={cat} className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-              <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-muted/30">
-                <Icon size={14} className="text-muted-foreground" />
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">{cat}</span>
-                <span className="ml-auto text-xs text-muted-foreground">{items.length} items</span>
-              </div>
-              <div className="divide-y divide-border">
-                {items.map((item) => {
-                  const st = stockStatus(item);
-                  const cfg = STATUS_CONFIG[st];
-                  const isEditingQty = editQtyId === item.id;
-                  return (
-                    <div key={item.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors group">
-                      {/* Status dot */}
-                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.text }} />
-
-                      {/* Name */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{item.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {/* Editable current qty */}
-                          {isEditingQty ? (
-                            <div className="flex items-center gap-1">
-                              <input
-                                autoFocus type="number" value={editQtyVal}
-                                onChange={(e) => setEditQtyVal(e.target.value)}
-                                onBlur={() => { if (editQtyVal !== "") update(item.id, { currentQty: parseFloat(editQtyVal) }); setEditQtyId(null); }}
-                                onKeyDown={(e) => { if (e.key === "Enter") { if (editQtyVal !== "") update(item.id, { currentQty: parseFloat(editQtyVal) }); setEditQtyId(null); } }}
-                                className="w-16 bg-input-background rounded-lg px-2 py-0.5 text-xs font-[DM_Mono,monospace] border border-primary focus:outline-none"
-                              />
-                              <span className="text-xs text-muted-foreground">{item.unit}</span>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => { setEditQtyId(item.id); setEditQtyVal(String(item.currentQty)); }}
-                              className="text-xs font-[DM_Mono,monospace] font-semibold hover:underline"
-                              style={{ color: cfg.text }}
-                            >
-                              {item.currentQty % 1 === 0 ? item.currentQty : item.currentQty.toFixed(1)} {item.unit}
-                            </button>
-                          )}
-                          <span className="text-muted-foreground/40 text-xs">·</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded-md font-semibold" style={{ backgroundColor: cfg.bg, color: cfg.text }}>
-                            {cfg.label}
-                          </span>
-                          <span className="text-xs text-muted-foreground/60">min {item.minThreshold} {item.unit}</span>
-                        </div>
-                      </div>
-
-                      {/* Wanted toggle */}
-                      <button
-                        onClick={() => toggleWanted(item.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border flex-shrink-0 ${
-                          item.wanted
-                            ? "border-amber-300 text-amber-700 bg-amber-50"
-                            : "border-transparent text-muted-foreground bg-muted hover:border-border"
-                        }`}
-                      >
-                        {item.wanted ? <Star size={12} fill="currentColor" /> : <StarOff size={12} />}
-                        {item.wanted ? "Wanted" : "Want"}
-                      </button>
-
-                      {/* Delete */}
-                      <button onClick={() => removeItem(item.id)}
-                        className="p-1.5 rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-red-50 transition-all">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-
-        {filteredStock.length === 0 && (
-          <div className="text-center py-16 text-muted-foreground">
-            <Boxes size={32} className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm font-medium">No items found.</p>
-          </div>
-        )}
-      </div>
-
-      {/* RIGHT: Wanted List */}
-      <div className="lg:w-72 flex-shrink-0">
-        <div className="bg-card rounded-2xl border border-border shadow-sm sticky top-4">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <div className="flex items-center gap-2">
-              <BookMarked size={15} className="text-amber-600" />
-              <h2 className="text-sm font-bold">Wanted List</h2>
-              {wantedItems.length > 0 && (
-                <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">
-                  {wantedItems.length}
-                </span>
-              )}
-            </div>
-            {wantedItems.length > 0 && (
-              <button onClick={clearAllWanted} className="text-xs text-muted-foreground hover:text-destructive transition-colors font-medium">
-                Clear all
-              </button>
-            )}
-          </div>
-
-          {wantedItems.length === 0 ? (
-            <div className="py-12 text-center px-5">
-              <Star size={28} className="mx-auto mb-3 text-muted-foreground opacity-30" />
-              <p className="text-sm text-muted-foreground font-medium">No items marked as wanted.</p>
-              <p className="text-xs text-muted-foreground mt-1">Click ★ Want on any stock item to add it here.</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-border">
-              {wantedItems.map((item) => {
-                const st = stockStatus(item);
-                const cfg = STATUS_CONFIG[st];
-                const isEditingWanted = editWantedQtyId === item.id;
-                return (
-                  <div key={item.id} className="px-4 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.text }} />
-                          <p className="text-sm font-semibold text-foreground truncate">{item.name}</p>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 ml-3">
-                          Have: <span className="font-[DM_Mono,monospace] font-semibold" style={{ color: cfg.text }}>
-                            {item.currentQty % 1 === 0 ? item.currentQty : item.currentQty.toFixed(1)} {item.unit}
-                          </span>
-                        </p>
-                      </div>
-                      <button onClick={() => toggleWanted(item.id)} className="text-amber-500 hover:text-muted-foreground transition-colors flex-shrink-0 mt-0.5">
-                        <Star size={14} fill="currentColor" />
-                      </button>
-                    </div>
-
-                    {/* Wanted qty */}
-                    <div className="mt-2 flex items-center gap-2 ml-3">
-                      <span className="text-xs text-muted-foreground">Need:</span>
-                      {isEditingWanted ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            autoFocus type="number" value={editWantedQtyVal}
-                            onChange={(e) => setEditWantedQtyVal(e.target.value)}
-                            onBlur={() => { if (editWantedQtyVal !== "") update(item.id, { wantedQty: parseFloat(editWantedQtyVal) }); setEditWantedQtyId(null); }}
-                            onKeyDown={(e) => { if (e.key === "Enter") { if (editWantedQtyVal !== "") update(item.id, { wantedQty: parseFloat(editWantedQtyVal) }); setEditWantedQtyId(null); } }}
-                            className="w-14 bg-input-background rounded-lg px-2 py-0.5 text-xs font-[DM_Mono,monospace] border border-primary focus:outline-none"
-                          />
-                          <span className="text-xs text-muted-foreground">{item.unit}</span>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setEditWantedQtyId(item.id); setEditWantedQtyVal(String(item.wantedQty)); }}
-                          className="text-xs font-[DM_Mono,monospace] font-bold text-primary hover:underline"
-                        >
-                          {item.wantedQty} {item.unit}
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Note */}
-                    <input
-                      type="text" placeholder="Add note…" value={item.wantedNote}
-                      onChange={(e) => update(item.id, { wantedNote: e.target.value })}
-                      className="mt-2 w-full bg-transparent text-xs text-muted-foreground placeholder:text-muted-foreground/50 border-0 border-b border-dashed border-border focus:outline-none focus:border-primary ml-3"
-                      style={{ width: "calc(100% - 0.75rem)" }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {wantedItems.length > 0 && (
-            <div className="px-5 py-4 border-t border-border">
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
-                <span className="font-semibold">{wantedItems.length} items to buy</span>
-                <span className="flex items-center gap-1">
-                  <CheckCheck size={12} />
-                  tap ★ to clear
-                </span>
-              </div>
-              <div className="space-y-1">
-                {(Object.keys(PURCHASE_ITEMS) as PurchaseCategory[]).map((cat) => {
-                  const catWanted = wantedItems.filter((i) => i.category === cat);
-                  if (catWanted.length === 0) return null;
-                  const CatIcon = CAT_ICONS[cat] || Package;
-                  const CAT_ICONS2: Record<string, typeof Leaf> = {
-                    "Fruits & Vegetables": Leaf,
-                    "Packaging & Plastics": Package,
-                    "Other Supplies": ShoppingCart,
-                    "Ice Cream": IceCream,
-                    "Dry Fruits": Nut,
-                    "Cleaning Utility": Sparkles,
-                    "Essence": Droplet,
-                  };
-                  const CIcon = CAT_ICONS2[cat] || Package;
-                  return (
-                    <div key={cat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <CIcon size={10} /><span>{catWanted.length} {cat.split(" ")[0].toLowerCase()}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Add Stock Item Modal */}
-      {showAddForm && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h3 className="text-base font-bold">Add Stock Item</h3>
-              <button onClick={() => setShowAddForm(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Category</label>
-                <div className="flex flex-col gap-1.5">
-                  {(Object.keys(PURCHASE_ITEMS) as PurchaseCategory[]).map((cat) => {
-                    const Icon = CAT_ICONS[cat] || Package;
-                    return (
-                      <button key={cat} onClick={() => setFCat(cat)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border text-left transition-all ${fCat === cat ? "bg-primary/10 border-primary/40 text-primary" : "bg-muted border-transparent text-muted-foreground"}`}
-                      ><Icon size={13} />{cat}</button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Item Name</label>
-                <input type="text" placeholder="e.g. Dragon Fruit" value={fName} onChange={(e) => setFName(e.target.value)}
-                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Current Qty</label>
-                  <input type="number" placeholder="0" value={fQty} onChange={(e) => setFQty(e.target.value)}
-                    className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-                </div>
-                <div className="w-28">
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Unit</label>
-                  <div className="relative">
-                    <select value={fUnit} onChange={(e) => setFUnit(e.target.value as PurchaseUnit)}
-                      className="w-full bg-input-background rounded-xl px-3 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring appearance-none">
-                      {(["kg", "pcs", "packets", "liters", "dozen", "boxes"] as PurchaseUnit[]).map((u) => <option key={u}>{u}</option>)}
-                    </select>
-                    <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Min Threshold (alert when below)</label>
-                <input type="number" placeholder="e.g. 5" value={fMin} onChange={(e) => setFMin(e.target.value)}
-                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <button onClick={submitAdd} disabled={!fName || !fQty}
-                className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 hover:opacity-90"
-                style={{ backgroundColor: shop.color }}>Add to Stock</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Commitments View ────────────────────────────────────────────────────────
-function CommitmentsView({
-  shopId,
-  commitments,
-  payments,
-  onAddCommitment,
-  onDeleteCommitment,
-  onMarkPaid,
-}: {
-  shopId: ShopId;
-  commitments: Commitment[];
-  payments: CommitmentPayment[];
-  onAddCommitment: (c: Commitment) => void;
-  onDeleteCommitment: (id: string) => void;
-  onMarkPaid: (p: CommitmentPayment) => void;
-}) {
-  const shop = SHOPS[shopId];
-  const now = new Date();
-  const currentMk = mkFromDate(now);
-
-  // available months (last 6)
-  const months = useMemo(() => {
-    const list: string[] = [];
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      list.push(mkFromDate(d));
-    }
-    return list;
-  }, []);
-
-  const [selectedMk, setSelectedMk] = useState(currentMk);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [payModal, setPayModal] = useState<Commitment | null>(null);
-  const [historyModal, setHistoryModal] = useState<Commitment | null>(null);
-
-  // Add commitment form
-  const [fName, setFName] = useState("");
-  const [fEmoji, setFEmoji] = useState("🏪");
-  const [fAmount, setFAmount] = useState("");
-  const [fDueDay, setFDueDay] = useState("1");
-
-  // Mark paid form
-  const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState<PaymentMethod>("cash");
-  const [payNote, setPayNote] = useState("");
-  const [payDate, setPayDate] = useState(now.toISOString().split("T")[0]);
-
-  const EMOJI_OPTIONS = ["🏪", "⚡", "👨‍💼", "📋", "💧", "📶", "🔥", "🛡️", "🏦", "🚗", "📦", "🔧"];
-
-  const paymentsInMonth = useMemo(
-    () => payments.filter((p) => p.monthKey === selectedMk),
-    [payments, selectedMk]
-  );
-
-  const paidIds = useMemo(() => new Set(paymentsInMonth.map((p) => p.commitmentId)), [paymentsInMonth]);
-
-  const totalCommitted = commitments.reduce((s, c) => s + c.amount, 0);
-  const totalPaid = paymentsInMonth.reduce((s, p) => s + p.paidAmount, 0);
-  const totalPending = commitments
-    .filter((c) => !paidIds.has(c.id))
-    .reduce((s, c) => s + c.amount, 0);
-
-  function submitAdd() {
-    if (!fName || !fAmount) return;
-    const colors = ["#7c3aed", "#f59e0b", "#0ea5e9", "#10b981", "#06b6d4", "#6366f1", "#ef4444", "#ec4899"];
-    onAddCommitment({
-      id: Date.now().toString(),
-      name: fName,
-      emoji: fEmoji,
-      amount: parseFloat(fAmount),
-      dueDay: parseInt(fDueDay),
-      color: colors[commitments.length % colors.length],
-    });
-    setFName(""); setFAmount(""); setFDueDay("1"); setFEmoji("🏪");
-    setShowAddForm(false);
-  }
-
-  function submitPay() {
-    if (!payModal || !payAmount) return;
-    onMarkPaid({
-      id: Date.now().toString(),
-      commitmentId: payModal.id,
-      monthKey: selectedMk,
-      paidAmount: parseFloat(payAmount),
-      paymentMethod: payMethod,
-      paidDate: new Date(payDate),
-      note: payNote,
-    });
-    setPayAmount(""); setPayNote(""); setPayDate(now.toISOString().split("T")[0]);
-    setPayModal(null);
-  }
-
-  const historyPayments = useMemo(
-    () => historyModal ? payments.filter((p) => p.commitmentId === historyModal.id).sort((a, b) => b.paidDate.getTime() - a.paidDate.getTime()) : [],
-    [payments, historyModal]
-  );
-
-  return (
-    <div className="space-y-5">
-      {/* Month selector */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Month:</span>
-          {months.map((mk) => (
-            <button key={mk} onClick={() => setSelectedMk(mk)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border ${selectedMk === mk ? "text-white border-transparent" : "bg-card text-foreground border-border"}`}
-              style={selectedMk === mk ? { backgroundColor: shop.color } : {}}
-            >{mkLabel(mk)}</button>
-          ))}
-        </div>
-        <button onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
-          style={{ backgroundColor: shop.color }}
-        ><Plus size={15} /> Add Commitment</button>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-card rounded-2xl p-5 border border-border shadow-sm">
-          <p className="text-xs font-semibold text-muted-foreground mb-2">Total Committed</p>
-          <p className="text-2xl font-bold font-[DM_Mono,monospace] text-foreground">{fmt(totalCommitted)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{commitments.length} items</p>
-        </div>
-        <div className="bg-card rounded-2xl p-5 border border-border shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle2 size={14} className="text-green-600" />
-            <p className="text-xs font-semibold text-muted-foreground">Paid</p>
-          </div>
-          <p className="text-2xl font-bold font-[DM_Mono,monospace] text-green-600">{fmt(totalPaid)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{paidIds.size} of {commitments.length} done</p>
-        </div>
-        <div className="rounded-2xl p-5 border shadow-sm" style={{ backgroundColor: totalPending > 0 ? "#fef2f2" : "#f0fdf4", borderColor: totalPending > 0 ? "#fecaca" : "#bbf7d0" }}>
-          <div className="flex items-center gap-2 mb-2">
-            <AlertCircle size={14} style={{ color: totalPending > 0 ? "#dc2626" : "#16a34a" }} />
-            <p className="text-xs font-semibold text-muted-foreground">Pending</p>
-          </div>
-          <p className="text-2xl font-bold font-[DM_Mono,monospace]" style={{ color: totalPending > 0 ? "#dc2626" : "#16a34a" }}>{fmt(totalPending)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{commitments.length - paidIds.size} items remaining</p>
-        </div>
-      </div>
-
-      {/* Commitment cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {commitments.map((c) => {
-          const isPaid = paidIds.has(c.id);
-          const pmt = paymentsInMonth.find((p) => p.commitmentId === c.id);
-          const isDue = !isPaid && now.getDate() >= c.dueDay && selectedMk === currentMk;
-
-          return (
-            <div key={c.id}
-              className={`bg-card rounded-2xl border shadow-sm p-5 flex flex-col gap-4 transition-all ${isPaid ? "border-green-200" : isDue ? "border-red-200" : "border-border"}`}
-            >
-              {/* Top row */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                    style={{ backgroundColor: c.color + "18" }}>
-                    {c.emoji}
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-foreground">{c.name}</p>
-                    <p className="text-xs text-muted-foreground">Due: {c.dueDay}{["st","nd","rd"][((c.dueDay % 10) - 1)] || "th"} of month</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => setHistoryModal(c)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                    <History size={13} />
-                  </button>
-                  <button onClick={() => onDeleteCommitment(c.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors">
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Amount */}
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground font-semibold">Expected</p>
-                  <p className="text-xl font-bold font-[DM_Mono,monospace]" style={{ color: c.color }}>
-                    {fmt(c.amount)}
-                  </p>
-                </div>
-                {isPaid && pmt && (
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Paid</p>
-                    <p className="text-sm font-bold font-[DM_Mono,monospace] text-green-600">{fmt(pmt.paidAmount)}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Status / action */}
-              {isPaid && pmt ? (
-                <div className="flex items-center justify-between bg-green-50 rounded-xl px-3 py-2">
-                  <div className="flex items-center gap-2 text-green-700">
-                    <CheckCircle2 size={14} />
-                    <span className="text-xs font-semibold">Paid on {pmt.paidDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</span>
-                  </div>
-                  <span className={`text-xs font-semibold flex items-center gap-1 ${pmt.paymentMethod === "cash" ? "text-amber-600" : "text-sky-600"}`}>
-                    {pmt.paymentMethod === "cash" ? <Banknote size={11} /> : <Smartphone size={11} />}
-                    {pmt.paymentMethod === "cash" ? "Cash" : "GPay"}
-                  </span>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { setPayModal(c); setPayAmount(String(c.amount)); }}
-                  className={`w-full py-2 rounded-xl text-xs font-bold transition-all border ${
-                    isDue
-                      ? "bg-red-50 text-destructive border-red-200 hover:bg-red-100"
-                      : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
-                  }`}
-                >
-                  {isDue ? "⚠️ Overdue — Mark as Paid" : "Mark as Paid"}
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Empty state */}
-      {commitments.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground">
-          <ClipboardList size={32} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm font-medium">No commitments yet.</p>
-          <p className="text-xs mt-1">Add recurring monthly expenses like rent, EB bill, salary.</p>
-        </div>
-      )}
-
-      {/* Add Commitment Modal */}
-      {showAddForm && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h3 className="text-base font-bold">New Monthly Commitment</h3>
-              <button onClick={() => setShowAddForm(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              {/* Emoji picker */}
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-2 block">Icon</label>
-                <div className="flex flex-wrap gap-2">
-                  {EMOJI_OPTIONS.map((e) => (
-                    <button key={e} onClick={() => setFEmoji(e)}
-                      className={`w-9 h-9 rounded-xl text-lg transition-all border ${fEmoji === e ? "border-primary bg-primary/10" : "border-border bg-muted"}`}
-                    >{e}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Name</label>
-                <input type="text" placeholder="e.g. Shop Rent" value={fName} onChange={(e) => setFName(e.target.value)}
-                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Amount (₹)</label>
-                  <input type="number" placeholder="0" value={fAmount} onChange={(e) => setFAmount(e.target.value)}
-                    className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-                </div>
-                <div className="w-28">
-                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">Due Day</label>
-                  <input type="number" min="1" max="31" value={fDueDay} onChange={(e) => setFDueDay(e.target.value)}
-                    className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-                </div>
-              </div>
-              <button onClick={submitAdd} disabled={!fName || !fAmount}
-                className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 hover:opacity-90"
-                style={{ backgroundColor: shop.color }}>Save Commitment</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Mark Paid Modal */}
-      {payModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <div>
-                <h3 className="text-base font-bold">Mark as Paid</h3>
-                <p className="text-xs text-muted-foreground">{payModal.emoji} {payModal.name} · {mkLabel(selectedMk)}</p>
-              </div>
-              <button onClick={() => setPayModal(null)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Payment Method</label>
-                <div className="flex gap-2">
-                  <button onClick={() => setPayMethod("cash")} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold border ${payMethod === "cash" ? "bg-amber-50 text-amber-700 border-amber-300" : "bg-muted text-muted-foreground border-transparent"}`}><Banknote size={15} /> Hand Cash</button>
-                  <button onClick={() => setPayMethod("gpay")} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold border ${payMethod === "gpay" ? "bg-sky-50 text-sky-700 border-sky-300" : "bg-muted text-muted-foreground border-transparent"}`}><Smartphone size={15} /> GPay</button>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Amount Paid (₹)</label>
-                <input type="number" value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
-                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-                {payAmount && parseFloat(payAmount) !== payModal.amount && (
-                  <p className="text-xs mt-1" style={{ color: parseFloat(payAmount) > payModal.amount ? "#16a34a" : "#dc2626" }}>
-                    Expected: {fmt(payModal.amount)} ({parseFloat(payAmount) > payModal.amount ? "+" : ""}{fmt(parseFloat(payAmount) - payModal.amount)})
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Date Paid</label>
-                <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)}
-                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Note (optional)</label>
-                <input type="text" placeholder="e.g. Paid via NEFT" value={payNote} onChange={(e) => setPayNote(e.target.value)}
-                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <button onClick={submitPay} disabled={!payAmount}
-                className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 hover:opacity-90"
-                style={{ backgroundColor: shop.color }}>Confirm Payment</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* History Modal */}
-      {historyModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between p-5 border-b border-border flex-shrink-0">
-              <div>
-                <h3 className="text-base font-bold">{historyModal.emoji} {historyModal.name}</h3>
-                <p className="text-xs text-muted-foreground">Payment history</p>
-              </div>
-              <button onClick={() => setHistoryModal(null)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-2">
-              {historyPayments.length === 0 ? (
-                <p className="text-center text-muted-foreground text-sm py-8">No payment history.</p>
-              ) : (
-                historyPayments.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl">
-                    <div className="flex items-center gap-1 text-muted-foreground w-24 flex-shrink-0">
-                      <Calendar size={11} />
-                      <span className="text-xs">{mkLabel(p.monthKey)}</span>
-                    </div>
-                    <div className="flex-1">
-                      <span className={`text-xs font-semibold flex items-center gap-1 ${p.paymentMethod === "cash" ? "text-amber-600" : "text-sky-600"}`}>
-                        {p.paymentMethod === "cash" ? <Banknote size={10} /> : <Smartphone size={10} />}
-                        {p.paymentMethod === "cash" ? "Cash" : "GPay"}
-                      </span>
-                      {p.note && <p className="text-xs text-muted-foreground mt-0.5">{p.note}</p>}
-                    </div>
-                    <span className="text-sm font-bold font-[DM_Mono,monospace] text-green-600">{fmt(p.paidAmount)}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Finance View ─────────────────────────────────────────────────────────────
-function FinanceView({
-  shopId, transactions, onAdd,
-}: { shopId: ShopId; transactions: Transaction[]; onAdd: (t: Transaction) => void }) {
-  const shop = SHOPS[shopId];
-  const [period, setPeriod] = useState<Period>("30d");
-  const [showForm, setShowForm] = useState(false);
-  const [formType, setFormType] = useState<TransactionType>("income");
-  const [formPayment, setFormPayment] = useState<PaymentMethod>("cash");
-  const [formAmount, setFormAmount] = useState("");
-  const [formCategory, setFormCategory] = useState("");
-  const [formDesc, setFormDesc] = useState("");
-  const [formDate, setFormDate] = useState(new Date().toISOString().split("T")[0]);
-  const [activeTab, setActiveTab] = useState<"all" | "income" | "expense">("all");
-
-  const cutoff = useMemo(() => {
-    const now = new Date();
-    if (period === "7d") { const d = new Date(now); d.setDate(now.getDate() - 7); return d; }
-    if (period === "30d") { const d = new Date(now); d.setDate(now.getDate() - 30); return d; }
-    if (period === "90d") { const d = new Date(now); d.setDate(now.getDate() - 90); return d; }
-    return new Date(0);
-  }, [period]);
-
-  const filtered = useMemo(() => transactions.filter((t) => t.date >= cutoff), [transactions, cutoff]);
-  const totalIncome = useMemo(() => filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0), [filtered]);
-  const totalExpense = useMemo(() => filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0), [filtered]);
-  const balance = totalIncome - totalExpense;
-  const cashIncome = useMemo(() => filtered.filter((t) => t.type === "income" && t.paymentMethod === "cash").reduce((s, t) => s + t.amount, 0), [filtered]);
-  const cashExpense = useMemo(() => filtered.filter((t) => t.type === "expense" && t.paymentMethod === "cash").reduce((s, t) => s + t.amount, 0), [filtered]);
-  const gpayIncome = useMemo(() => filtered.filter((t) => t.type === "income" && t.paymentMethod === "gpay").reduce((s, t) => s + t.amount, 0), [filtered]);
-  const gpayExpense = useMemo(() => filtered.filter((t) => t.type === "expense" && t.paymentMethod === "gpay").reduce((s, t) => s + t.amount, 0), [filtered]);
-  const cashBalance = cashIncome - cashExpense;
-  const gpayBalance = gpayIncome - gpayExpense;
-
-  const chartData = useMemo(() => {
-    const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
-    const map: Record<string, { income: number; expense: number }> = {};
-    const now = new Date();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(now); d.setDate(now.getDate() - i);
-      const key = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
-      map[key] = { income: 0, expense: 0 };
-    }
-    filtered.forEach((t) => {
-      const key = t.date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
-      if (map[key]) { if (t.type === "income") map[key].income += t.amount; else map[key].expense += t.amount; }
-    });
-    const entries = Object.entries(map).map(([label, v]) => ({ label, ...v }));
-    if (period === "90d") {
-      const grouped: Record<string, { income: number; expense: number }> = {};
-      entries.forEach((e, i) => { const w = `Wk ${Math.floor(i / 7) + 1}`; if (!grouped[w]) grouped[w] = { income: 0, expense: 0 }; grouped[w].income += e.income; grouped[w].expense += e.expense; });
-      return Object.entries(grouped).map(([label, v]) => ({ label, ...v }));
-    }
-    return entries;
-  }, [filtered, period]);
-
-  const categoryBreakdown = useMemo(() => {
-    const map: Record<string, number> = {};
-    filtered.forEach((t) => { if (!map[t.category]) map[t.category] = 0; map[t.category] += t.amount; });
-    return Object.entries(map).map(([cat, amt]) => ({ cat, amt })).sort((a, b) => b.amt - a.amt).slice(0, 8);
-  }, [filtered]);
-
-  const visibleTxns = useMemo(() => filtered.filter((t) => activeTab === "all" || t.type === activeTab).slice(0, 25), [filtered, activeTab]);
-
-  function addTransaction() {
-    if (!formAmount) return;
-    const category = formType === "income" ? "Full Day Income" : (formCategory || "Miscellaneous");
-    const description = formType === "income" ? "Full Day Sales" : (formDesc || "Shop Expense");
-    onAdd({ id: Date.now().toString(), type: formType, paymentMethod: formPayment, amount: Math.abs(parseFloat(formAmount)), category, description, date: new Date(formDate) });
-    setFormAmount(""); setFormCategory(""); setFormDesc(""); setFormDate(new Date().toISOString().split("T")[0]); setShowForm(false);
-  }
-
-  return (
-    <div className="space-y-5">
-      {/* Period Filter + Add button */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Period:</span>
-          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-            <button key={p} onClick={() => setPeriod(p)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border ${period === p ? "text-white border-transparent shadow-sm" : "bg-card text-foreground border-border"}`}
-              style={period === p ? { backgroundColor: shop.color } : {}}
-            >{PERIOD_LABELS[p]}</button>
-          ))}
-        </div>
-        <button onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
-          style={{ backgroundColor: shop.color }}
-        ><Plus size={15} /> Add Entry</button>
-      </div>
-
-      {/* Payment method cards */}
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Payment Method Breakdown</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-card rounded-2xl p-5 border border-border shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center"><Banknote size={15} className="text-amber-700" /></div>
-              <span className="text-sm font-semibold text-muted-foreground">Hand Cash</span>
-            </div>
-            <p className="text-2xl font-bold font-[DM_Mono,monospace]" style={{ color: cashBalance >= 0 ? "#b45309" : "#dc2626" }}>{fmtShort(Math.abs(cashBalance))}</p>
-            <div className="mt-3 flex gap-3 text-xs"><span className="text-green-600 font-medium">+{fmtShort(cashIncome)}</span><span className="text-destructive font-medium">−{fmtShort(cashExpense)}</span></div>
-          </div>
-          <div className="bg-card rounded-2xl p-5 border border-border shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-xl bg-sky-50 flex items-center justify-center"><Smartphone size={15} className="text-sky-700" /></div>
-              <span className="text-sm font-semibold text-muted-foreground">GPay</span>
-            </div>
-            <p className="text-2xl font-bold font-[DM_Mono,monospace]" style={{ color: gpayBalance >= 0 ? "#0369a1" : "#dc2626" }}>{fmtShort(Math.abs(gpayBalance))}</p>
-            <div className="mt-3 flex gap-3 text-xs"><span className="text-green-600 font-medium">+{fmtShort(gpayIncome)}</span><span className="text-destructive font-medium">−{fmtShort(gpayExpense)}</span></div>
-          </div>
-          <div className="rounded-2xl p-5 border shadow-sm text-white" style={{ backgroundColor: shop.color }}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center"><Wallet size={15} /></div>
-              <span className="text-sm font-semibold opacity-80">Total Balance</span>
-            </div>
-            <p className="text-2xl font-bold font-[DM_Mono,monospace]">{fmtShort(Math.abs(balance))}</p>
-            <div className="mt-3 flex gap-3 text-xs opacity-80"><span>Cash: {fmtShort(cashBalance)}</span><span>GPay: {fmtShort(gpayBalance)}</span></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Income / Expense */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0"><TrendingUp size={18} className="text-green-700" /></div>
-          <div><p className="text-xs text-muted-foreground font-semibold">Total Income</p><p className="text-xl font-bold text-green-700 font-[DM_Mono,monospace]">{fmt(totalIncome)}</p><p className="text-xs text-muted-foreground mt-0.5">{filtered.filter((t) => t.type === "income").length} transactions</p></div>
-        </div>
-        <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0"><TrendingDown size={18} className="text-destructive" /></div>
-          <div><p className="text-xs text-muted-foreground font-semibold">Total Expenses</p><p className="text-xl font-bold text-destructive font-[DM_Mono,monospace]">{fmt(totalExpense)}</p><p className="text-xs text-muted-foreground mt-0.5">{filtered.filter((t) => t.type === "expense").length} transactions</p></div>
-        </div>
-      </div>
-
-      {/* Chart */}
-      <div className="bg-card rounded-2xl border border-border shadow-sm p-5">
-        <h2 className="text-sm font-bold mb-4">Income vs Expenses — {PERIOD_LABELS[period]}</h2>
-        <ResponsiveContainer key={period} width="100%" height={200}>
-          <BarChart data={chartData} barGap={2}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fontFamily: "DM Mono, monospace", fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval={period === "7d" ? 0 : period === "30d" ? 4 : 0} />
-            <YAxis tickFormatter={fmtShort} tick={{ fontSize: 10, fontFamily: "DM Mono, monospace", fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={48} />
-            <Tooltip formatter={(v: number, name: string) => [fmt(v), name === "income" ? "Income" : "Expense"]} contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", fontFamily: "DM Mono, monospace", fontSize: 12 }} />
-            <Legend formatter={(v) => v === "income" ? "Income" : "Expenses"} wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="income" fill={shop.color} radius={[4, 4, 0, 0]} maxBarSize={22} />
-            <Bar dataKey="expense" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={22} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Bottom grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        <div className="bg-card rounded-2xl border border-border shadow-sm p-5 lg:col-span-2">
-          <h2 className="text-sm font-bold mb-4">By Category</h2>
-          <div className="space-y-3">
-            {categoryBreakdown.map(({ cat, amt }) => {
-              const max = categoryBreakdown[0]?.amt || 1;
-              const color = CATEGORY_COLORS[cat] || "#94a3b8";
-              return (
-                <div key={cat} className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                  <span className="text-xs font-medium w-28 truncate">{cat}</span>
-                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${Math.round((amt / max) * 100)}%`, backgroundColor: color }} />
-                  </div>
-                  <span className="text-xs font-semibold font-[DM_Mono,monospace] text-muted-foreground w-16 text-right">{fmtShort(amt)}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div className="bg-card rounded-2xl border border-border shadow-sm p-5 lg:col-span-3">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold">Recent Transactions</h2>
-            <div className="flex gap-1 bg-muted rounded-xl p-1">
-              {(["all", "income", "expense"] as const).map((tab) => (
-                <button key={tab} onClick={() => setActiveTab(tab)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold capitalize transition-all ${activeTab === tab ? "bg-card shadow-sm text-foreground" : "text-muted-foreground"}`}
-                >{tab}</button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-1.5 max-h-72 overflow-y-auto">
-            {visibleTxns.length === 0 && <p className="text-center text-muted-foreground text-sm py-8">No transactions in this period.</p>}
-            {visibleTxns.map((t) => (
-              <div key={t.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted/50 transition-colors">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0" style={{ backgroundColor: (CATEGORY_COLORS[t.category] || "#94a3b8") + "18" }}>
-                  {t.type === "income" ? "📈" : "📉"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold truncate">{t.description}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-xs text-muted-foreground truncate">{t.category}</span>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span className={`text-xs font-medium flex items-center gap-0.5 ${t.paymentMethod === "cash" ? "text-amber-600" : "text-sky-600"}`}>
-                      {t.paymentMethod === "cash" ? <Banknote size={10} /> : <Smartphone size={10} />}
-                      {t.paymentMethod === "cash" ? "Cash" : "GPay"}
-                    </span>
-                    <span className="text-muted-foreground/40">·</span>
-                    <span className="text-xs text-muted-foreground">{t.date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</span>
-                  </div>
-                </div>
-                <span className={`text-xs font-bold font-[DM_Mono,monospace] flex-shrink-0 ${t.type === "income" ? "text-green-700" : "text-destructive"}`}>
-                  {t.type === "income" ? "+" : "−"}{fmt(t.amount)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Add Entry Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <div><h3 className="text-base font-bold">Add Entry</h3><p className="text-xs text-muted-foreground">{shop.emoji} {shop.name}</p></div>
-              <button onClick={() => setShowForm(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="flex gap-2">
-                <button onClick={() => { setFormType("income"); setFormCategory(""); }} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border ${formType === "income" ? "bg-green-700 text-white border-green-700" : "bg-muted text-muted-foreground border-transparent"}`}>+ Income</button>
-                <button onClick={() => { setFormType("expense"); setFormCategory(""); }} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border ${formType === "expense" ? "bg-destructive text-white border-destructive" : "bg-muted text-muted-foreground border-transparent"}`}>− Expense</button>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Payment Method</label>
-                <div className="flex gap-2">
-                  <button onClick={() => setFormPayment("cash")} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold border ${formPayment === "cash" ? "bg-amber-50 text-amber-700 border-amber-300" : "bg-muted text-muted-foreground border-transparent"}`}><Banknote size={15} /> Hand Cash</button>
-                  <button onClick={() => setFormPayment("gpay")} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold border ${formPayment === "gpay" ? "bg-sky-50 text-sky-700 border-sky-300" : "bg-muted text-muted-foreground border-transparent"}`}><Smartphone size={15} /> GPay</button>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Amount (₹)</label>
-                <input type="number" placeholder="0" value={formAmount} onChange={(e) => setFormAmount(e.target.value)} className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              {formType === "expense" && (
-                <>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Category</label>
-                    <div className="relative">
-                      <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring appearance-none">
-                        <option value="">Select category…</option>
-                        {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Description</label>
-                    <input type="text" placeholder="e.g. Shop utility payment" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-                  </div>
-                </>
-              )}
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1 block">Date</label>
-                <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
-              <button onClick={addTransaction} disabled={!formAmount} className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 hover:opacity-90 transition-opacity" style={{ backgroundColor: shop.color }}>Save Entry</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Root App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
-  const [userEmail, setUserEmail] = useState<string>("admin@jsfinance.com");
+  const [, setUserEmail] = useState<string>("admin@jsfinance.com");
   const [activeShop, setActiveShop] = useState<ShopId>("shop1");
-  const [mainView, setMainView] = useState<MainView>("finance");
-  const [shopTransactions, setShopTransactions] = useState<Record<ShopId, Transaction[]>>(INITIAL_TRANSACTIONS);
-  const [shopPurchases, setShopPurchases] = useState<Record<ShopId, Purchase[]>>(INITIAL_PURCHASES);
-  const [shopCommitments, setShopCommitments] = useState<Record<ShopId, Commitment[]>>(INITIAL_COMMITMENTS);
-  const [shopCommitmentPayments, setShopCommitmentPayments] = useState<Record<ShopId, CommitmentPayment[]>>(INITIAL_COMMITMENT_PAYMENTS);
-  const [shopStockList, setShopStockList] = useState<Record<ShopId, Record<string, StockStatus>>>({ shop1: {}, shop2: {} });
-  const [shopCustomItems, setShopCustomItems] = useState<Record<ShopId, string[]>>({ shop1: [], shop2: [] });
+  const [mainView, setMainView] = useState<MainView>("dashboard");
+  const [shopTransactions, setShopTransactions] = useState<Record<ShopId, Transaction[]>>(
+    INITIAL_TRANSACTIONS
+  );
+  const [shopPurchases, setShopPurchases] = useState<Record<ShopId, Purchase[]>>(
+    INITIAL_PURCHASES
+  );
+  const [commitments, setCommitments] = useState<Commitment[]>([]);
+  const [commitmentPayments, setCommitmentPayments] = useState<CommitmentPayment[]>([]);
+  const [shopStockList, setShopStockList] = useState<Record<ShopId, Record<string, StockStatus>>>({
+    shop1: {},
+    shop2: {},
+  });
+  const [shopCustomItems, setShopCustomItems] = useState<Record<ShopId, string[]>>({
+    shop1: [],
+    shop2: [],
+  });
   const [shopStock, setShopStock] = useState<Record<ShopId, StockItem[]>>(INITIAL_STOCK);
   const [showBell, setShowBell] = useState(false);
   const [dismissedBanner, setDismissedBanner] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
+
+  // New modules states
+  const [personalExpenses, setPersonalExpenses] = useState<PersonalExpense[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [staffList, setStaffList] = useState<Staff[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>([]);
+
+  // Quick Entry FAB States
+  const [showQuickEntry, setShowQuickEntry] = useState(false);
+  const [showQuickIncome, setShowQuickIncome] = useState(false);
+  const [showQuickExpense, setShowQuickExpense] = useState(false);
+
+  // Quick Income Form States
+  const [quickIncShop, setQuickIncShop] = useState<ShopId>("shop1");
+  const [quickIncPayment, setQuickIncPayment] = useState<PaymentMethod>("cash");
+  const [quickIncAmount, setQuickIncAmount] = useState("");
+  const [quickIncDesc, setQuickIncDesc] = useState("");
+  const [quickIncDate, setQuickIncDate] = useState(new Date().toISOString().split("T")[0]);
+
+  // Quick Expense Form States
+  const [quickExpCategory, setQuickExpCategory] = useState("");
+  const [quickExpPayment, setQuickExpPayment] = useState<PaymentMethod>("cash");
+  const [quickExpAmount, setQuickExpAmount] = useState("");
+  const [quickExpDesc, setQuickExpDesc] = useState("");
+  const [quickExpDate, setQuickExpDate] = useState(new Date().toISOString().split("T")[0]);
 
   const shop = SHOPS[activeShop];
 
@@ -2154,45 +142,151 @@ export default function App() {
 
     async function loadData() {
       try {
-        const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+        const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(
+          2,
+          "0"
+        )}`;
 
-        const [txns, purchases, commitmentsData, stock] = await Promise.all([
-          api.getTransactions(activeShop),
-          api.getPurchases(activeShop),
+        const [
+          txnsShop1,
+          txnsShop2,
+          purchasesShop1,
+          purchasesShop2,
+          commitmentsData,
+          stockShop1,
+          stockShop2,
+          personal,
+          debtRecords,
+          staff,
+          attendance,
+          salaries,
+        ] = await Promise.all([
+          api.getTransactions("shop1"),
+          api.getTransactions("shop2"),
+          api.getPurchases("shop1"),
+          api.getPurchases("shop2"),
           api.getCommitments(activeShop, monthKey),
-          api.getStock(activeShop),
+          api.getStock("shop1"),
+          api.getStock("shop2"),
+          api.getPersonalExpenses(),
+          api.getDebts(),
+          api.getStaff(),
+          api.getAttendance(),
+          api.getSalaryPayments(),
         ]);
 
-        setShopTransactions((prev) => ({ ...prev, [activeShop]: txns }));
-        setShopPurchases((prev) => ({ ...prev, [activeShop]: purchases }));
-        setShopCommitments((prev) => ({ ...prev, [activeShop]: commitmentsData.commitments }));
-        setShopCommitmentPayments((prev) => ({ ...prev, [activeShop]: commitmentsData.payments }));
-        setShopStock((prev) => ({ ...prev, [activeShop]: stock }));
+        setShopTransactions({ shop1: txnsShop1, shop2: txnsShop2 });
+        setShopPurchases({ shop1: purchasesShop1, shop2: purchasesShop2 });
+        setCommitments(commitmentsData.commitments);
+        setCommitmentPayments(commitmentsData.payments);
+        setShopStock({ shop1: stockShop1, shop2: stockShop2 });
+        setPersonalExpenses(personal);
+        setDebts(debtRecords);
+        setStaffList(staff);
+        setAttendanceRecords(attendance);
+        setSalaryPayments(salaries);
       } catch (error) {
         console.error("Error loading backend data:", error);
       }
     }
 
     loadData();
-  }, [isLoggedIn, activeShop]);
+  }, [isLoggedIn]);
 
-  async function addTransaction(t: Transaction) {
+  async function addTransaction(
+    t: Transaction,
+    targetShopId: ShopId = activeShop,
+    purchasePayloads?: {
+      itemName: string;
+      category: any;
+      quantity: number;
+      unit: any;
+      price: number;
+      date: Date;
+    }[]
+  ) {
     try {
-      const newTx = await api.addTransaction(activeShop, t);
-      setShopTransactions((prev) => ({ ...prev, [activeShop]: [newTx, ...prev[activeShop]] }));
+      const newTx = await api.addTransaction(targetShopId, t);
+      if (newTx.type === "expense") {
+        setShopTransactions((prev) => ({
+          ...prev,
+          shop1: [newTx, ...prev.shop1],
+          shop2: [newTx, ...prev.shop2],
+        }));
+      } else {
+        setShopTransactions((prev) => ({
+          ...prev,
+          [targetShopId]: [newTx, ...prev[targetShopId]],
+        }));
+      }
+
+      if (purchasePayloads && purchasePayloads.length > 0) {
+        await Promise.all(
+          purchasePayloads.map(async (pItem) => {
+            const p: Omit<Purchase, "id"> = {
+              itemName: pItem.itemName,
+              category: pItem.category,
+              quantity: pItem.quantity,
+              unit: pItem.unit,
+              pricePerUnit: Math.round((pItem.price / pItem.quantity) * 100) / 100,
+              totalPrice: pItem.price,
+              date: pItem.date,
+              expenseId: newTx.id,
+            };
+            await addPurchase(p as Purchase, targetShopId);
+          })
+        );
+      }
     } catch (error) {
       console.error("Failed to add transaction:", error);
     }
   }
 
-  async function addPurchase(p: Purchase) {
+  async function deleteTransaction(id: string, type: TransactionType, targetShopId: ShopId = activeShop) {
     try {
-      const newP = await api.addPurchase(activeShop, p);
-      setShopPurchases((prev) => ({ ...prev, [activeShop]: [newP, ...prev[activeShop]] }));
-      
+      await api.deleteTransaction(targetShopId, id, type);
+      if (type === "expense") {
+        setShopTransactions((prev) => ({
+          ...prev,
+          shop1: prev.shop1.filter((t) => t.id !== id),
+          shop2: prev.shop2.filter((t) => t.id !== id),
+        }));
+        // Also cascade delete associated purchases locally
+        setShopPurchases((prev) => ({
+          ...prev,
+          shop1: prev.shop1.filter((p) => p.expenseId !== id),
+          shop2: prev.shop2.filter((p) => p.expenseId !== id),
+        }));
+        
+        // Reload stock for both shops to reflect inventory adjustments from deleted stock purchases
+        const [stock1, stock2] = await Promise.all([
+          api.getStock("shop1"),
+          api.getStock("shop2"),
+        ]);
+        setShopStock({ shop1: stock1, shop2: stock2 });
+      } else {
+        setShopTransactions((prev) => ({
+          ...prev,
+          [targetShopId]: prev[targetShopId].filter((t) => t.id !== id),
+        }));
+      }
+    } catch (error) {
+      console.error("Failed to delete transaction:", error);
+    }
+  }
+
+  async function addPurchase(p: Purchase, targetShopId: ShopId = activeShop) {
+    try {
+      const newP = await api.addPurchase(targetShopId, p);
+      setShopPurchases((prev) => ({
+        ...prev,
+        shop1: [newP, ...prev.shop1],
+        shop2: [newP, ...prev.shop2],
+      }));
+
       // Reload stock to reflect inventory adjustments
-      const updatedStock = await api.getStock(activeShop);
-      setShopStock((prev) => ({ ...prev, [activeShop]: updatedStock }));
+      const updatedStock = await api.getStock(targetShopId);
+      setShopStock((prev) => ({ ...prev, [targetShopId]: updatedStock }));
     } catch (error) {
       console.error("Failed to save purchase:", error);
     }
@@ -2201,7 +295,7 @@ export default function App() {
   async function addCommitment(c: Commitment) {
     try {
       const newC = await api.addCommitment(activeShop, c);
-      setShopCommitments((prev) => ({ ...prev, [activeShop]: [...prev[activeShop], newC] }));
+      setCommitments((prev) => [...prev, newC]);
     } catch (error) {
       console.error("Failed to add commitment:", error);
     }
@@ -2210,7 +304,7 @@ export default function App() {
   async function deleteCommitment(id: string) {
     try {
       await api.deleteCommitment(activeShop, id);
-      setShopCommitments((prev) => ({ ...prev, [activeShop]: prev[activeShop].filter((c) => c.id !== id) }));
+      setCommitments((prev) => prev.filter((c) => c.id !== id));
     } catch (error) {
       console.error("Failed to delete commitment:", error);
     }
@@ -2219,17 +313,45 @@ export default function App() {
   async function markCommitmentPaid(p: CommitmentPayment) {
     try {
       const newP = await api.payCommitment(activeShop, p.commitmentId, p);
-      setShopCommitmentPayments((prev) => ({ ...prev, [activeShop]: [newP, ...prev[activeShop]] }));
+      setCommitmentPayments((prev) => {
+        const idx = prev.findIndex((x) => x.id === newP.id);
+        if (idx >= 0) {
+          // Replace existing (updated partials)
+          const updated = [...prev];
+          updated[idx] = newP;
+          return updated;
+        }
+        return [newP, ...prev];
+      });
     } catch (error) {
       console.error("Failed to pay commitment:", error);
+    }
+  }
+
+  async function deleteCommitmentPartialPayment(commitmentId: string, partialId: string, monthKey: string) {
+    try {
+      const updated = await api.deleteCommitmentPartialPayment(activeShop, commitmentId, partialId, monthKey);
+      setCommitmentPayments((prev) => {
+        if (!updated) {
+          // All partials removed — remove the whole payment entry
+          return prev.filter((p) => !(p.commitmentId === commitmentId && p.monthKey === monthKey));
+        }
+        return prev.map((p) => (p.commitmentId === commitmentId && p.monthKey === monthKey ? updated : p));
+      });
+    } catch (error) {
+      console.error("Failed to delete partial payment:", error);
     }
   }
 
   function toggleStockItem(itemName: string) {
     setShopStockList((prev) => {
       const current = prev[activeShop][itemName] ?? "none";
-      const next: StockStatus = current === "none" ? "in-stock" : current === "in-stock" ? "wanted" : "none";
-      return { ...prev, [activeShop]: { ...prev[activeShop], [itemName]: next } };
+      const next: StockStatus =
+        current === "none" ? "in-stock" : current === "in-stock" ? "wanted" : "none";
+      return {
+        ...prev,
+        [activeShop]: { ...prev[activeShop], [itemName]: next },
+      };
     });
   }
 
@@ -2253,27 +375,19 @@ export default function App() {
     });
   }
 
-  function handleLogout() {
-    localStorage.removeItem("jsf_logged_in");
-    localStorage.removeItem("jsf_user_email");
-    localStorage.removeItem("jsf_token");
-    sessionStorage.removeItem("jsf_logged_in");
-    sessionStorage.removeItem("jsf_user_email");
-    sessionStorage.removeItem("jsf_token");
-    setIsLoggedIn(false);
-    setUserEmail("");
-  }
-
   async function updateStock(items: StockItem[]) {
     const currentList = shopStock[activeShop] || [];
-    
+
     // Check if item was added
     if (items.length > currentList.length) {
       const addedItem = items.find((i) => !currentList.some((c) => c.id === i.id));
       if (addedItem) {
         try {
           const newS = await api.addStockItem(activeShop, addedItem);
-          setShopStock((prev) => ({ ...prev, [activeShop]: [...prev[activeShop], newS] }));
+          setShopStock((prev) => ({
+            ...prev,
+            [activeShop]: [...prev[activeShop], newS],
+          }));
         } catch (error) {
           console.error("Failed to add stock item:", error);
         }
@@ -2287,7 +401,10 @@ export default function App() {
       if (deletedItem) {
         try {
           await api.deleteStockItem(activeShop, deletedItem.id);
-          setShopStock((prev) => ({ ...prev, [activeShop]: prev[activeShop].filter((s) => s.id !== deletedItem.id) }));
+          setShopStock((prev) => ({
+            ...prev,
+            [activeShop]: prev[activeShop].filter((s) => s.id !== deletedItem.id),
+          }));
         } catch (error) {
           console.error("Failed to delete stock item:", error);
         }
@@ -2306,7 +423,7 @@ export default function App() {
         const updated = await api.updateStockItem(activeShop, changedItem.id, changedItem);
         setShopStock((prev) => ({
           ...prev,
-          [activeShop]: prev[activeShop].map((s) => s.id === changedItem.id ? updated : s),
+          [activeShop]: prev[activeShop].map((s) => (s.id === changedItem.id ? updated : s)),
         }));
       } catch (error) {
         console.error("Failed to update stock item:", error);
@@ -2314,6 +431,200 @@ export default function App() {
     } else {
       setShopStock((prev) => ({ ...prev, [activeShop]: items }));
     }
+  }
+
+  // Personal Expenses handlers
+  async function handleAddPersonal(p: Omit<PersonalExpense, "id">) {
+    try {
+      const newP = await api.addPersonalExpense(p);
+      setPersonalExpenses((prev) => [newP, ...prev]);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleDeletePersonal(id: string) {
+    try {
+      await api.deletePersonalExpense(id);
+      setPersonalExpenses((prev) => prev.filter((e) => e.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  // Debt handlers
+  async function handleAddDebt(d: Omit<Debt, "id" | "payments" | "remainingAmount" | "status">) {
+    try {
+      const newD = await api.addDebt(d);
+      setDebts((prev) => [newD, ...prev]);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handlePayDebt(id: string, amount: number, date: string, description: string, paymentMethod?: string) {
+    try {
+      const updatedD = await api.payDebt(id, amount, date, description, paymentMethod);
+      setDebts((prev) => prev.map((d) => (d.id === id ? updatedD : d)));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleDeleteDebt(id: string) {
+    try {
+      await api.deleteDebt(id);
+      setDebts((prev) => prev.filter((d) => d.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleDeleteDebtPayment(debtId: string, paymentId: string) {
+    try {
+      const updatedD = await api.deleteDebtPayment(debtId, paymentId);
+      setDebts((prev) => prev.map((d) => (d.id === debtId ? updatedD : d)));
+      // Trigger update of ledger and active transactions too
+      const txns = await api.getTransactions(activeShop);
+      setShopTransactions((prev) => ({ ...prev, [activeShop]: txns }));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  // Staff Attendance handlers
+  async function handleAddStaff(s: Omit<Staff, "id">) {
+    try {
+      const newS = await api.addStaff(s);
+      setStaffList((prev) => [...prev, newS]);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleDeleteStaff(id: string) {
+    try {
+      await api.deleteStaff(id);
+      setStaffList((prev) => prev.filter((s) => s.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleUpdateStaff(id: string, s: Partial<Staff> & { effectiveDate?: string }) {
+    try {
+      const updatedS = await api.updateStaff(id, s as any);
+      setStaffList((prev) => prev.map((item) => (item.id === id ? updatedS : item)));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+
+  async function handleSaveAttendance(staffId: string, date: string, status: "present" | "absent") {
+    try {
+      const record = await api.saveAttendance(staffId, date, status);
+      setAttendanceRecords((prev) => {
+        const filtered = prev.filter(
+          (r) =>
+            r.staffId !== staffId ||
+            new Date(r.date).toDateString() !== new Date(date).toDateString()
+        );
+        return [record, ...filtered];
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handlePaySalary(p: Omit<SalaryPayment, "id">) {
+    try {
+      const newP = await api.paySalary(p);
+      setSalaryPayments((prev) => [newP, ...prev]);
+    } catch (err) {
+      console.error("Failed to pay salary:", err);
+    }
+  }
+
+  async function handleDeleteSalaryPayment(id: string) {
+    try {
+      await api.deleteSalaryPayment(id);
+      setSalaryPayments((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      console.error("Failed to delete salary payment:", err);
+    }
+  }
+
+  async function handleQuickIncomeSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!quickIncAmount) return;
+
+    const transaction: Transaction = {
+      id: Date.now().toString(),
+      type: "income",
+      paymentMethod: quickIncPayment,
+      amount: Math.abs(parseFloat(quickIncAmount)),
+      category: "Full Day Income",
+      description: quickIncDesc || "Full Day Sales",
+      date: new Date(quickIncDate),
+    };
+
+    await addTransaction(transaction, quickIncShop);
+
+    setQuickIncAmount("");
+    setQuickIncDesc("");
+    setQuickIncDate(new Date().toISOString().split("T")[0]);
+    setShowQuickIncome(false);
+  }
+
+  async function handleQuickExpenseSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!quickExpAmount) return;
+
+    const transaction: Transaction = {
+      id: Date.now().toString(),
+      type: "expense",
+      paymentMethod: quickExpPayment,
+      amount: Math.abs(parseFloat(quickExpAmount)),
+      category: quickExpCategory || "Miscellaneous",
+      description: quickExpDesc || "Shop Expense",
+      date: new Date(quickExpDate),
+    };
+
+    await addTransaction(transaction, activeShop);
+
+    setQuickExpAmount("");
+    setQuickExpCategory("");
+    setQuickExpDesc("");
+    setQuickExpDate(new Date().toISOString().split("T")[0]);
+    setShowQuickExpense(false);
+  }
+
+  // Seeding/Reset DB API callbacks
+  async function handleResetDatabase() {
+    const token = localStorage.getItem("jsf_token") || sessionStorage.getItem("jsf_token") || "";
+    const response = await fetch("/api/auth/reset", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.message || "Reset failed");
+    window.location.reload();
+  }
+
+  async function handleSeedDatabase() {
+    const token = localStorage.getItem("jsf_token") || sessionStorage.getItem("jsf_token") || "";
+    const response = await fetch("/api/auth/seed", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.message || "Seed failed");
+    window.location.reload();
   }
 
   // Close bell dropdown on outside click
@@ -2330,7 +641,7 @@ export default function App() {
   // Compute all wanted items for the global reminder (preset + custom)
   const allWantedItems = useMemo(() => {
     const sl = shopStockList[activeShop];
-    const preset = ALL_ITEMS_FLAT.map((i) => i.name).filter((n) => sl[n] === "wanted");
+    const preset = Object.keys(sl).filter((n) => sl[n] === "wanted");
     const custom = (shopCustomItems[activeShop] || []).filter((n) => sl[n] === "wanted");
     return [...preset, ...custom];
   }, [shopStockList, shopCustomItems, activeShop]);
@@ -2341,7 +652,7 @@ export default function App() {
     const low: { shopId: ShopId; item: StockItem }[] = [];
     const wanted: { shopId: ShopId; item: StockItem }[] = [];
     (Object.keys(SHOPS) as ShopId[]).forEach((sid) => {
-      shopStock[sid].forEach((item) => {
+      (shopStock[sid] || []).forEach((item) => {
         const st = stockStatus(item);
         if (st === "out") out.push({ shopId: sid, item });
         else if (st === "low") low.push({ shopId: sid, item });
@@ -2351,13 +662,13 @@ export default function App() {
     return { out, low, wanted };
   }, [shopStock]);
 
-  const totalAlerts = allReminders.out.length + allReminders.low.length + allReminders.wanted.length;
+  const totalAlerts =
+    allReminders.out.length + allReminders.low.length + allReminders.wanted.length;
   const urgentCount = allReminders.out.length;
-
 
   // Stock counts for the active shop (for tab badge)
   const activeStockAlerts = useMemo(() => {
-    const items = shopStock[activeShop];
+    const items = shopStock[activeShop] || [];
     return {
       out: items.filter((i) => stockStatus(i) === "out").length,
       low: items.filter((i) => stockStatus(i) === "low").length,
@@ -2365,8 +676,44 @@ export default function App() {
     };
   }, [shopStock, activeShop]);
 
+  // Map salary list for reports
+  const salaryReportList = useMemo(() => {
+    const currentMonth = `${new Date().getFullYear()}-${String(
+      new Date().getMonth() + 1
+    ).padStart(2, "0")}`;
+    const report: { staffName: string; calculatedSalary: number }[] = [];
+    
+    staffList.forEach((s) => {
+      // Find present days in activeMonth
+      const [y, m] = currentMonth.split("-").map(Number);
+      const start = new Date(y, m - 1, 1);
+      const end = new Date(y, m, 1);
+
+      const presentDays = attendanceRecords.filter(
+        (r) =>
+          r.staffId === s.id &&
+          r.status === "present" &&
+          r.date >= start &&
+          r.date < end
+      ).length;
+
+      report.push({
+        staffName: s.name,
+        calculatedSalary: presentDays * s.dailyWage,
+      });
+    });
+    return report;
+  }, [staffList, attendanceRecords]);
+
   if (!isLoggedIn) {
-    return <Login onLoginSuccess={(email) => { setIsLoggedIn(true); setUserEmail(email); }} />;
+    return (
+      <Login
+        onLoginSuccess={(email) => {
+          setIsLoggedIn(true);
+          setUserEmail(email);
+        }}
+      />
+    );
   }
 
   return (
@@ -2374,31 +721,120 @@ export default function App() {
       {/* Header */}
       <header className="px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-border bg-card shadow-sm gap-3">
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ backgroundColor: shop.color + "20" }}>{shop.emoji}</div>
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
+            style={{ backgroundColor: shop.color + "20" }}
+          >
+            {shop.emoji}
+          </div>
           <div className="hidden sm:block">
-            <h1 className="text-base font-bold leading-tight">JuiceShop Finance</h1>
+            <h1 className="text-base font-bold leading-tight">JuiceShop MERN Finance</h1>
             <p className="text-xs text-muted-foreground">{shop.name}</p>
           </div>
         </div>
 
-        {/* Main nav */}
-        <div className="flex gap-1 bg-muted rounded-xl p-1 overflow-x-auto flex-shrink-0">
-          <button onClick={() => setMainView("finance")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${mainView === "finance" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-            <LayoutDashboard size={13} /> Finance
+        {/* Global Executive Roster Navigation */}
+        <div className="flex gap-1 bg-muted rounded-xl p-1 overflow-x-auto max-w-[70%] flex-shrink-0">
+          <button
+            onClick={() => setMainView("dashboard")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              mainView === "dashboard"
+                ? "bg-card shadow-sm text-foreground font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <LayoutDashboard size={13} /> Dashboard
           </button>
-          <button onClick={() => setMainView("purchases")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${mainView === "purchases" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          <button
+            onClick={() => setMainView("sales")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              mainView === "sales"
+                ? "bg-card shadow-sm text-foreground font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <BadgeCent size={13} /> Sales
+          </button>
+          <button
+            onClick={() => setMainView("purchases")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              mainView === "purchases"
+                ? "bg-card shadow-sm text-foreground font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
             <ShoppingCart size={13} /> Purchases
           </button>
-          <button onClick={() => setMainView("commitments")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${mainView === "commitments" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          <button
+            onClick={() => setMainView("commitments")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              mainView === "commitments"
+                ? "bg-card shadow-sm text-foreground font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
             <ClipboardList size={13} /> Commitments
           </button>
-          <button onClick={() => setMainView("stock")}
-            className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${mainView === "stock" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          <button
+            onClick={() => setMainView("personal")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              mainView === "personal"
+                ? "bg-card shadow-sm text-foreground font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <HeartHandshake size={13} /> Personal
+          </button>
+          <button
+            onClick={() => setMainView("debt")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              mainView === "debt"
+                ? "bg-card shadow-sm text-foreground font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ShieldAlert size={13} /> Debt
+          </button>
+          <button
+            onClick={() => setMainView("attendance")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              mainView === "attendance"
+                ? "bg-card shadow-sm text-foreground font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Users size={13} /> Attendance
+          </button>
+          <button
+            onClick={() => setMainView("reports")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              mainView === "reports"
+                ? "bg-card shadow-sm text-foreground font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ChartPie size={13} /> Reports
+          </button>
+          <button
+            onClick={() => setMainView("settings")}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              mainView === "settings"
+                ? "bg-card shadow-sm text-foreground font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Settings size={13} /> Settings
+          </button>
+          <button
+            onClick={() => setMainView("stock")}
+            className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              mainView === "stock"
+                ? "bg-card shadow-sm text-foreground font-black"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
             <Boxes size={13} /> Stock
-            {(activeStockAlerts.out + activeStockAlerts.low) > 0 && (
+            {activeStockAlerts.out + activeStockAlerts.low > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center">
                 {activeStockAlerts.out + activeStockAlerts.low}
               </span>
@@ -2406,11 +842,15 @@ export default function App() {
           </button>
         </div>
 
-        {/* Bell */}
+        {/* Bell Alerts */}
         <div className="relative flex-shrink-0" ref={bellRef}>
           <button
             onClick={() => setShowBell((v) => !v)}
-            className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${showBell ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+              showBell
+                ? "bg-primary/10 text-primary"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
           >
             {totalAlerts > 0 ? <BellRing size={17} /> : <Bell size={17} />}
             {totalAlerts > 0 && (
@@ -2442,17 +882,28 @@ export default function App() {
                   <div>
                     <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border-b border-red-100">
                       <CircleAlert size={13} className="text-destructive" />
-                      <span className="text-xs font-bold text-destructive uppercase tracking-wide">Out of Stock</span>
-                      <span className="ml-auto text-xs font-bold text-destructive">{allReminders.out.length}</span>
+                      <span className="text-xs font-bold text-destructive uppercase tracking-wide">
+                        Out of Stock
+                      </span>
+                      <span className="ml-auto text-xs font-bold text-destructive">
+                        {allReminders.out.length}
+                      </span>
                     </div>
                     {allReminders.out.map(({ shopId, item }) => (
-                      <div key={`out-${shopId}-${item.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 border-b border-border/50">
+                      <div
+                        key={`out-${shopId}-${item.id}`}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 border-b border-border/50"
+                      >
                         <div className="w-2 h-2 rounded-full bg-destructive flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">{SHOPS[shopId].emoji} {SHOPS[shopId].name.split("—")[0].trim()}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {SHOPS[shopId].emoji} {SHOPS[shopId].name.split("—")[0].trim()}
+                          </p>
                         </div>
-                        <span className="text-xs font-bold text-destructive font-[DM_Mono,monospace]">0 {item.unit}</span>
+                        <span className="text-xs font-bold text-destructive font-[DM_Mono,monospace]">
+                          0 {item.unit}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -2463,18 +914,28 @@ export default function App() {
                   <div>
                     <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-100">
                       <AlertCircle size={13} className="text-amber-600" />
-                      <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">Low Stock</span>
-                      <span className="ml-auto text-xs font-bold text-amber-700">{allReminders.low.length}</span>
+                      <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">
+                        Low Stock
+                      </span>
+                      <span className="ml-auto text-xs font-bold text-amber-700">
+                        {allReminders.low.length}
+                      </span>
                     </div>
                     {allReminders.low.map(({ shopId, item }) => (
-                      <div key={`low-${shopId}-${item.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 border-b border-border/50">
+                      <div
+                        key={`low-${shopId}-${item.id}`}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 border-b border-border/50"
+                      >
                         <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">{SHOPS[shopId].emoji} {SHOPS[shopId].name.split("—")[0].trim()}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {SHOPS[shopId].emoji} {SHOPS[shopId].name.split("—")[0].trim()}
+                          </p>
                         </div>
                         <span className="text-xs font-bold text-amber-700 font-[DM_Mono,monospace]">
-                          {item.currentQty % 1 === 0 ? item.currentQty : item.currentQty.toFixed(1)} {item.unit}
+                          {item.currentQty % 1 === 0 ? item.currentQty : item.currentQty.toFixed(1)}{" "}
+                          {item.unit}
                         </span>
                       </div>
                     ))}
@@ -2486,17 +947,38 @@ export default function App() {
                   <div>
                     <div className="flex items-center gap-2 px-4 py-2 bg-amber-50/50 border-b border-amber-100/50">
                       <Star size={13} className="text-amber-500" fill="currentColor" />
-                      <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">Wanted to Buy</span>
-                      <span className="ml-auto text-xs font-bold text-amber-600">{allReminders.wanted.length}</span>
+                      <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">
+                        Wanted to Buy
+                      </span>
+                      <span className="ml-auto text-xs font-bold text-amber-600">
+                        {allReminders.wanted.length}
+                      </span>
                     </div>
                     {allReminders.wanted.map(({ shopId, item }) => (
-                      <div key={`want-${shopId}-${item.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 border-b border-border/50">
-                        <Star size={12} className="text-amber-400 flex-shrink-0" fill="currentColor" />
+                      <div
+                        key={`want-${shopId}-${item.id}`}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 border-b border-border/50"
+                      >
+                        <Star
+                          size={12}
+                          className="text-amber-400 flex-shrink-0"
+                          fill="currentColor"
+                        />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{item.name}</p>
                           <div className="flex items-center gap-1.5">
-                            <p className="text-xs text-muted-foreground">{SHOPS[shopId].emoji} {SHOPS[shopId].name.split("—")[0].trim()}</p>
-                            {item.wantedNote && <><span className="text-muted-foreground/40">·</span><p className="text-xs text-muted-foreground truncate">{item.wantedNote}</p></>}
+                            <p className="text-xs text-muted-foreground">
+                              {SHOPS[shopId].emoji}{" "}
+                              {SHOPS[shopId].name.split("—")[0].trim()}
+                            </p>
+                            {item.wantedNote && (
+                              <>
+                                <span className="text-muted-foreground/40">·</span>
+                                <p className="text-xs text-muted-foreground truncate font-medium">
+                                  {item.wantedNote}
+                                </p>
+                              </>
+                            )}
                           </div>
                         </div>
                         <span className="text-xs font-bold text-primary font-[DM_Mono,monospace]">
@@ -2510,7 +992,10 @@ export default function App() {
 
               <div className="px-4 py-3 border-t border-border">
                 <button
-                  onClick={() => { setMainView("stock"); setShowBell(false); }}
+                  onClick={() => {
+                    setMainView("stock");
+                    setShowBell(false);
+                  }}
                   className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
                 >
                   <ExternalLink size={12} /> Go to Stock List
@@ -2521,45 +1006,68 @@ export default function App() {
         </div>
       </header>
 
-      {/* Urgent Banner */}
+      {/* Urgent Alert Banner */}
       {urgentCount > 0 && !dismissedBanner && (
         <div className="bg-destructive text-white px-4 py-2.5 flex items-center gap-3">
           <CircleAlert size={15} className="flex-shrink-0" />
           <p className="text-sm font-semibold flex-1">
             {urgentCount} item{urgentCount > 1 ? "s are" : " is"} out of stock across your shops —{" "}
-            <button onClick={() => { setMainView("stock"); setDismissedBanner(true); }} className="underline underline-offset-2 hover:opacity-80">
+            <button
+              onClick={() => {
+                setMainView("stock");
+                setDismissedBanner(true);
+              }}
+              className="underline underline-offset-2 hover:opacity-80 font-bold"
+            >
               check stock list
             </button>
           </p>
-          <button onClick={() => setDismissedBanner(true)} className="text-white/70 hover:text-white transition-colors flex-shrink-0">
+          <button
+            onClick={() => setDismissedBanner(true)}
+            className="text-white/70 hover:text-white transition-colors flex-shrink-0"
+          >
             <X size={16} />
           </button>
         </div>
       )}
 
-      {/* Shop Tabs */}
-      <div className="bg-card border-b border-border px-6">
-        <div className="flex gap-0 max-w-6xl mx-auto">
-          {(Object.keys(SHOPS) as ShopId[]).map((sid) => {
-            const s = SHOPS[sid];
-            const isActive = sid === activeShop;
-            const shopOut = shopStock[sid].filter((i) => stockStatus(i) === "out").length;
-            return (
-              <button key={sid} onClick={() => setActiveShop(sid)}
-                className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 transition-all ${isActive ? "border-current" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                style={isActive ? { color: s.color, borderColor: s.color } : {}}
-              >
-                <Store size={14} />{s.name}
-                {shopOut > 0 && (
-                  <span className="w-4 h-4 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center">{shopOut}</span>
-                )}
-              </button>
-            );
-          })}
+      {/* Shop tabs (only shown if viewing shop-specific data) */}
+      {(mainView === "sales" ||
+        mainView === "purchases" ||
+        mainView === "commitments" ||
+        mainView === "stock") && (
+        <div className="bg-card border-b border-border px-6">
+          <div className="flex gap-0 max-w-6xl mx-auto">
+            {(Object.keys(SHOPS) as ShopId[]).map((sid) => {
+              const s = SHOPS[sid];
+              const isActive = sid === activeShop;
+              const shopOut = (shopStock[sid] || []).filter((i) => stockStatus(i) === "out").length;
+              return (
+                <button
+                  key={sid}
+                  onClick={() => setActiveShop(sid)}
+                  className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 transition-all ${
+                    isActive
+                      ? "border-current"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                  style={isActive ? { color: s.color, borderColor: s.color } : {}}
+                >
+                  <Store size={14} />
+                  {s.name}
+                  {shopOut > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center font-[DM_Mono,monospace]">
+                      {shopOut}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Global Wanted Reminder Bar */}
+      {/* Global Shopping lists reminder */}
       {allWantedItems.length > 0 && (
         <div
           className="px-6 py-2.5"
@@ -2587,7 +1095,11 @@ export default function App() {
                 <span
                   key={name}
                   className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                  style={{ backgroundColor: "#fbbf24", color: "#78350f", border: "1px solid #f59e0b" }}
+                  style={{
+                    backgroundColor: "#fbbf24",
+                    color: "#78350f",
+                    border: "1px solid #f59e0b",
+                  }}
                 >
                   {name}
                 </span>
@@ -2604,35 +1116,410 @@ export default function App() {
       )}
 
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {mainView === "finance" && (
-          <FinanceView shopId={activeShop} transactions={shopTransactions[activeShop]} onAdd={addTransaction} />
+        {mainView === "dashboard" && (
+          <DashboardView
+            transactions={shopTransactions}
+            personalExpenses={personalExpenses}
+            debts={debts}
+            salaryPayments={salaryPayments}
+            commitments={commitments}
+            commitmentPayments={commitmentPayments}
+            onNavigateTo={setMainView}
+            onSelectShop={setActiveShop}
+          />
+        )}
+        {mainView === "sales" && (
+          <FinanceView
+            shopId={activeShop}
+            transactions={shopTransactions[activeShop] || []}
+            onAdd={addTransaction}
+            onDelete={deleteTransaction}
+          />
         )}
         {mainView === "purchases" && (
           <PurchasesView
             shopId={activeShop}
-            purchases={shopPurchases[activeShop]}
-            onAdd={addPurchase}
-            stockList={shopStockList[activeShop]}
+            purchases={shopPurchases[activeShop] || []}
+            onAdd={(p) => addPurchase(p, activeShop)}
+            stockList={shopStockList[activeShop] || {}}
             onStockToggle={toggleStockItem}
-            customItems={shopCustomItems[activeShop]}
+            customItems={shopCustomItems[activeShop] || []}
             onAddCustomItem={addCustomStockItem}
             onRemoveCustomItem={removeCustomStockItem}
           />
         )}
         {mainView === "commitments" && (
           <CommitmentsView
-            shopId={activeShop}
-            commitments={shopCommitments[activeShop]}
-            payments={shopCommitmentPayments[activeShop]}
+            commitments={commitments}
+            payments={commitmentPayments}
             onAddCommitment={addCommitment}
             onDeleteCommitment={deleteCommitment}
             onMarkPaid={markCommitmentPaid}
+            onDeletePartialPayment={deleteCommitmentPartialPayment}
+          />
+        )}
+        {mainView === "personal" && (
+          <PersonalView
+            expenses={personalExpenses}
+            onAdd={handleAddPersonal}
+            onDelete={handleDeletePersonal}
+          />
+        )}
+        {mainView === "debt" && (
+          <DebtView
+            debts={debts}
+            onAddDebt={handleAddDebt}
+            onPayDebt={handlePayDebt}
+            onDeleteDebt={handleDeleteDebt}
+            onDeletePayment={handleDeleteDebtPayment}
+          />
+        )}
+        {mainView === "attendance" && (
+          <AttendanceView
+            staffList={staffList}
+            attendanceRecords={attendanceRecords}
+            salaryPayments={salaryPayments}
+            onAddStaff={handleAddStaff}
+            onDeleteStaff={handleDeleteStaff}
+            onUpdateStaff={handleUpdateStaff}
+            onSaveAttendance={handleSaveAttendance}
+            onPaySalary={handlePaySalary}
+            onDeleteSalaryPayment={handleDeleteSalaryPayment}
+          />
+        )}
+        {mainView === "reports" && (
+          <ReportsView
+            transactions={shopTransactions}
+            purchases={shopPurchases}
+            debts={debts}
+            salaryReport={salaryReportList}
+          />
+        )}
+        {mainView === "settings" && (
+          <SettingsView
+            onResetDatabase={handleResetDatabase}
+            onSeedDatabase={handleSeedDatabase}
           />
         )}
         {mainView === "stock" && (
-          <StockView shopId={activeShop} stock={shopStock[activeShop]} onUpdate={updateStock} />
+          <StockView
+            shopId={activeShop}
+            stock={shopStock[activeShop] || []}
+            onUpdate={updateStock}
+          />
         )}
       </main>
+
+      {/* Floating Quick Entry FAB Button (Only on Dashboard) */}
+      {mainView === "dashboard" && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+          {/* Quick Menu Options */}
+          {showQuickEntry && (
+            <div className="mb-3 flex flex-col gap-2.5 items-end transition-all duration-200">
+              <button
+                onClick={() => {
+                  setShowQuickIncome(true);
+                  setShowQuickEntry(false);
+                }}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-full px-4 py-2 text-xs font-bold shadow-xl border border-emerald-600/35 hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
+              >
+                💵 Quick Income Entry
+              </button>
+              <button
+                onClick={() => {
+                  setShowQuickExpense(true);
+                  setShowQuickEntry(false);
+                }}
+                className="bg-amber-700 hover:bg-amber-800 text-white rounded-full px-4 py-2 text-xs font-bold shadow-xl border border-amber-600/35 hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
+              >
+                💸 Quick Expense Entry
+              </button>
+            </div>
+          )}
+
+          {/* Main FAB Circle Button */}
+          <button
+            onClick={() => setShowQuickEntry((v) => !v)}
+            className="w-14 h-14 rounded-full bg-emerald-700 text-white flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none border-2 border-white/20 cursor-pointer"
+            style={{
+              background: "linear-gradient(135deg, #047857 0%, #064e3b 100%)",
+            }}
+          >
+            <Plus
+              size={24}
+              className={`transform transition-transform duration-300 ${
+                showQuickEntry ? "rotate-45" : ""
+              }`}
+            />
+          </button>
+        </div>
+      )}
+
+      {/* Quick Income Entry Modal */}
+      {showQuickIncome && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div>
+                <h3 className="text-base font-bold text-foreground">Quick Income Entry</h3>
+                <p className="text-xs text-muted-foreground">Log incoming sales for either branch</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickIncome(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleQuickIncomeSubmit} className="p-5 space-y-4">
+              {/* Branch Shop selection */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Shop Branch</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQuickIncShop("shop1")}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      quickIncShop === "shop1"
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-400"
+                        : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
+                    }`}
+                  >
+                    🥤 Theppakulam Shop
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickIncShop("shop2")}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      quickIncShop === "shop2"
+                        ? "bg-sky-50 text-sky-800 border-sky-400"
+                        : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
+                    }`}
+                  >
+                    🍹 Anuppanadi Shop
+                  </button>
+                </div>
+              </div>
+
+              {/* Payment Method Selector */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1.5 block">Payment Method</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQuickIncPayment("cash")}
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                      quickIncPayment === "cash"
+                        ? "bg-amber-50 text-amber-700 border-amber-300"
+                        : "bg-muted text-muted-foreground border-transparent"
+                    }`}
+                  >
+                    <Banknote size={14} /> Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickIncPayment("gpay")}
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                      quickIncPayment === "gpay"
+                        ? "bg-sky-50 text-sky-700 border-sky-300"
+                        : "bg-muted text-muted-foreground border-transparent"
+                    }`}
+                  >
+                    <Smartphone size={14} /> GPay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickIncPayment("zomato")}
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                      quickIncPayment === "zomato"
+                        ? "bg-orange-50 text-orange-600 border-orange-300"
+                        : "bg-muted text-muted-foreground border-transparent"
+                    }`}
+                  >
+                    <Flame size={14} /> Zomato
+                  </button>
+                </div>
+              </div>
+
+              {/* Amount (₹) */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Amount (₹)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  required
+                  value={quickIncAmount}
+                  onChange={(e) => setQuickIncAmount(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Description</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Sales Income"
+                  value={quickIncDesc}
+                  onChange={(e) => setQuickIncDesc(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Date</label>
+                <input
+                  type="date"
+                  value={quickIncDate}
+                  onChange={(e) => setQuickIncDate(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={!quickIncAmount || parseFloat(quickIncAmount) <= 0}
+                className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:opacity-90 disabled:opacity-40 transition-all shadow-md"
+              >
+                Save Income
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Expense Entry Modal */}
+      {showQuickExpense && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div>
+                <h3 className="text-base font-bold text-foreground">Quick Expense Entry</h3>
+                <p className="text-xs text-muted-foreground">Log standard outgoing shop expenditures</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickExpense(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleQuickExpenseSubmit} className="p-5 space-y-4">
+              {/* Category */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Category</label>
+                <select
+                  value={quickExpCategory}
+                  onChange={(e) => setQuickExpCategory(e.target.value)}
+                  required
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">Select category...</option>
+                  <option value="Fruits & Vegetables">Fruits & Vegetables</option>
+                  <option value="Packaging & Plastics">Packaging & Plastics</option>
+                  <option value="Other Supplies">Other Supplies</option>
+                  <option value="Ice Cream">Ice Cream</option>
+                  <option value="Dry Fruits">Dry Fruits</option>
+                  <option value="Cleaning Utility">Cleaning Utility</option>
+                  <option value="Essence">Essence</option>
+                  <option value="Rent">Shop Rent</option>
+                  <option value="Utilities">Shop Utilities</option>
+                  <option value="Staff Wages">Staff Wages</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Miscellaneous">Miscellaneous</option>
+                </select>
+              </div>
+
+              {/* Payment Method Selector */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1.5 block">Payment Method</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQuickExpPayment("cash")}
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                      quickExpPayment === "cash"
+                        ? "bg-amber-50 text-amber-700 border-amber-300"
+                        : "bg-muted text-muted-foreground border-transparent"
+                    }`}
+                  >
+                    <Banknote size={14} /> Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickExpPayment("gpay")}
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                      quickExpPayment === "gpay"
+                        ? "bg-sky-50 text-sky-700 border-sky-300"
+                        : "bg-muted text-muted-foreground border-transparent"
+                    }`}
+                  >
+                    <Smartphone size={14} /> GPay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickExpPayment("zomato")}
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                      quickExpPayment === "zomato"
+                        ? "bg-orange-50 text-orange-600 border-orange-300"
+                        : "bg-muted text-muted-foreground border-transparent"
+                    }`}
+                  >
+                    <Flame size={14} /> Zomato
+                  </button>
+                </div>
+              </div>
+
+              {/* Amount (₹) */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Amount (₹)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  required
+                  value={quickExpAmount}
+                  onChange={(e) => setQuickExpAmount(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Description</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Utility bill"
+                  value={quickExpDesc}
+                  onChange={(e) => setQuickExpDesc(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Date</label>
+                <input
+                  type="date"
+                  value={quickExpDate}
+                  onChange={(e) => setQuickExpDate(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={!quickExpAmount || parseFloat(quickExpAmount) <= 0}
+                className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-amber-700 hover:opacity-90 disabled:opacity-40 transition-all shadow-md"
+              >
+                Save Expense
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

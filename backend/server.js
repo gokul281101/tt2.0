@@ -31,6 +31,9 @@ app.use('/api/expenses', require('./routes/expenses'));
 app.use('/api/commitments', require('./routes/commitments'));
 app.use('/api/purchases', require('./routes/purchases'));
 app.use('/api/inventory', require('./routes/inventory'));
+app.use('/api/personal', require('./routes/personal'));
+app.use('/api/debts', require('./routes/debts'));
+app.use('/api/attendance', require('./routes/attendance'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'JsFinance API running' }));

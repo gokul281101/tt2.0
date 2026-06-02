@@ -8,8 +8,9 @@ const PurchaseSchema = new mongoose.Schema({
   totalAmount: { type: Number, required: true },
   vendorName: { type: String, default: '' },
   category: { type: String, default: 'General' },
-  shop: { type: String, default: 'Shop 1', enum: ['Shop 1', 'Shop 2'] },
+  shop: { type: String, default: 'Global' },
   purchaseDate: { type: Date, default: Date.now },
+  expenseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Expense', default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Purchase', PurchaseSchema);

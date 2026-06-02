@@ -67,9 +67,13 @@ export default function ChangePasswordModal({ onClose }: ChangePasswordModalProp
     
     setIsLoading(true);
     try {
-      const response = await fetch("/api/admin/password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const token = localStorage.getItem("jsf_token") || sessionStorage.getItem("jsf_token") || "";
+      const response = await fetch("/api/auth/password", {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ newPassword })
       });
       if (!response.ok) {

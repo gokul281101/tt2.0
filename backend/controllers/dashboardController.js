@@ -21,9 +21,9 @@ exports.getStats = async (req, res) => {
 
     // Expense aggregations
     const [totalExpenseRes, dailyExpenseRes, monthlyExpenseRes] = await Promise.all([
-      Expense.aggregate([{ $match: { shop } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
-      Expense.aggregate([{ $match: { shop, date: { $gte: todayStart } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
-      Expense.aggregate([{ $match: { shop, date: { $gte: monthStart } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
+      Expense.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]),
+      Expense.aggregate([{ $match: { date: { $gte: todayStart } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
+      Expense.aggregate([{ $match: { date: { $gte: monthStart } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
     ]);
 
     const totalIncome = totalIncomeRes[0]?.total || 0;
@@ -31,7 +31,7 @@ exports.getStats = async (req, res) => {
 
     // Recent transactions
     const recentIncome = await Income.find({ shop }).sort({ date: -1 }).limit(5).lean();
-    const recentExpenses = await Expense.find({ shop }).sort({ date: -1 }).limit(5).lean();
+    const recentExpenses = await Expense.find({}).sort({ date: -1 }).limit(5).lean();
     const recent = [...recentIncome.map(i => ({ ...i, kind: 'income' })), ...recentExpenses.map(e => ({ ...e, kind: 'expense' }))]
       .sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
 
@@ -46,7 +46,7 @@ exports.getStats = async (req, res) => {
 
     // Pending commitments this month
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const allCommitments = await Commitment.find({ isActive: true, shop });
+    const allCommitments = await Commitment.find({ isActive: true });
     const payments = await CommitmentPayment.find({ monthKey });
     const paidIds = new Set(payments.map(p => p.commitmentId.toString()));
     const pendingCommitments = allCommitments.filter(c => !paidIds.has(c._id.toString()));
@@ -59,7 +59,7 @@ exports.getStats = async (req, res) => {
       const end = new Date(start); end.setDate(start.getDate() + 1);
       const [inc, exp] = await Promise.all([
         Income.aggregate([{ $match: { shop, date: { $gte: start, $lt: end } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
-        Expense.aggregate([{ $match: { shop, date: { $gte: start, $lt: end } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
+        Expense.aggregate([{ $match: { date: { $gte: start, $lt: end } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
       ]);
       last30.push({ date: start.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }), income: inc[0]?.total || 0, expense: exp[0]?.total || 0 });
     }
@@ -72,14 +72,13 @@ exports.getStats = async (req, res) => {
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
       const [inc, exp] = await Promise.all([
         Income.aggregate([{ $match: { shop, date: { $gte: start, $lt: end } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
-        Expense.aggregate([{ $match: { shop, date: { $gte: start, $lt: end } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
+        Expense.aggregate([{ $match: { date: { $gte: start, $lt: end } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
       ]);
       last6Months.push({ month: d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }), income: inc[0]?.total || 0, expense: exp[0]?.total || 0 });
     }
 
     // Expense by type
     const expenseByType = await Expense.aggregate([
-      { $match: { shop } },
       { $group: { _id: '$type', total: { $sum: '$amount' } } },
       { $sort: { total: -1 } }
     ]);

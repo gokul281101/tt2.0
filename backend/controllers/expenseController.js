@@ -3,8 +3,7 @@ const Expense = require('../models/Expense');
 exports.getAll = async (req, res) => {
   try {
     const { search, type, from, to, page = 1, limit = 20 } = req.query;
-    const shop = req.headers['x-shop'] || 'Shop 1';
-    const filter = { shop };
+    const filter = {};
     if (search) filter.description = { $regex: search, $options: 'i' };
     if (type) filter.type = type;
     if (from || to) {
@@ -26,7 +25,6 @@ exports.getAll = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const body = req.body;
-    body.shop = req.headers['x-shop'] || 'Shop 1';
     const expense = await Expense.create(body);
     res.status(201).json({ success: true, data: expense });
   } catch (err) {
@@ -47,6 +45,8 @@ exports.update = async (req, res) => {
 exports.remove = async (req, res) => {
   try {
     await Expense.findByIdAndDelete(req.params.id);
+    const Purchase = require('../models/Purchase');
+    await Purchase.deleteMany({ expenseId: req.params.id });
     res.json({ success: true, message: 'Deleted' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

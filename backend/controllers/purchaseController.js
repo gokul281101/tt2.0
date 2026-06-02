@@ -3,8 +3,7 @@ const Purchase = require('../models/Purchase');
 exports.getAll = async (req, res) => {
   try {
     const { search, from, to, page = 1, limit = 20 } = req.query;
-    const shop = req.headers['x-shop'] || 'Shop 1';
-    const filter = { shop };
+    const filter = {};
     if (search) filter.productName = { $regex: search, $options: 'i' };
     if (from || to) {
       filter.purchaseDate = {};
@@ -25,7 +24,7 @@ exports.getAll = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const body = req.body;
-    body.shop = req.headers['x-shop'] || 'Shop 1';
+    body.shop = 'Global';
     body.totalAmount = parseFloat(body.quantity) * parseFloat(body.pricePerUnit);
     const purchase = await Purchase.create(body);
     res.status(201).json({ success: true, data: purchase });
@@ -57,9 +56,7 @@ exports.remove = async (req, res) => {
 // GET /api/purchases/summary — product-wise aggregation
 exports.getSummary = async (req, res) => {
   try {
-    const shop = req.headers['x-shop'] || 'Shop 1';
     const summary = await Purchase.aggregate([
-      { $match: { shop } },
       { $group: {
         _id: '$productName',
         timesBought: { $sum: 1 },
