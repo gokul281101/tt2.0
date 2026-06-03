@@ -51,6 +51,7 @@ exports.resetDatabase = async (req, res) => {
     const PersonalExpense = require('../models/PersonalExpense');
     const Debt = require('../models/Debt');
     const Attendance = require('../models/Attendance');
+    const SalaryPayment = require('../models/SalaryPayment');
 
     await Promise.all([
       Income.deleteMany(),
@@ -59,7 +60,8 @@ exports.resetDatabase = async (req, res) => {
       CommitmentPayment.deleteMany(),
       PersonalExpense.deleteMany(),
       Debt.deleteMany(),
-      Attendance.deleteMany()
+      Attendance.deleteMany(),
+      SalaryPayment.deleteMany()
     ]);
 
     res.json({ success: true, message: 'Database reset completed! Cleared all transaction logs.' });
