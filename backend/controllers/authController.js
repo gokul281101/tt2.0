@@ -74,7 +74,7 @@ exports.seedDatabase = async (req, res) => {
     const { exec } = require('child_process');
     const path = require('path');
     
-    exec(`node.exe "${path.join(__dirname, '..', 'seed.js')}"`, { cwd: path.join(__dirname, '..') }, (error, stdout, stderr) => {
+    exec(`node "${path.join(__dirname, '..', 'seed.js')}"`, { cwd: path.join(__dirname, '..') }, (error, stdout, stderr) => {
       if (error) {
         console.error(`exec error: ${error}`);
         return res.status(500).json({ success: false, message: 'Seeding failed: ' + error.message });
