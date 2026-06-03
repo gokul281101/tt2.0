@@ -578,16 +578,29 @@ export function CommitmentsView({
                     </div>
                     {/* Individual partial payments */}
                     {p.partialPayments.length > 0 && (
-                      <div className="space-y-1 pl-2 border-l-2 border-border/50">
+                      <div className="space-y-1.5 pl-2 border-l-2 border-border/50">
                         {p.partialPayments.map((pp) => (
-                          <div key={pp.id} className="flex items-center justify-between text-xs">
+                          <div key={pp.id} className="flex items-center justify-between text-xs py-0.5">
                             <span className="text-muted-foreground">
                               {pp.paidDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
                               {pp.note ? ` · ${pp.note}` : ""}
                             </span>
-                            <span className={`font-semibold flex items-center gap-0.5 ${payMethodColor(pp.paymentMethod)}`}>
-                              {payMethodIcon(pp.paymentMethod)} {fmt(pp.amount)}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`font-semibold flex items-center gap-0.5 ${payMethodColor(pp.paymentMethod)}`}>
+                                {payMethodIcon(pp.paymentMethod)} {fmt(pp.amount)}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm("Delete this payment installment?")) {
+                                    onDeletePartialPayment(historyModal.id, pp.id, p.monthKey);
+                                  }
+                                }}
+                                className="text-muted-foreground hover:text-red-600 hover:bg-red-500/10 p-1 rounded transition-colors flex-shrink-0"
+                                title="Delete installment"
+                              >
+                                <X size={11} />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>

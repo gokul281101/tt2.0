@@ -110,7 +110,10 @@ exports.removeStaff = async (req, res) => {
     if (!data) return res.status(404).json({ success: false, message: 'Staff member not found' });
     // Also remove their attendance records
     await Attendance.deleteMany({ staffId: req.params.id });
-    res.json({ success: true, message: 'Staff and their attendance data deleted' });
+    // Also remove their salary payments
+    const SalaryPayment = require('../models/SalaryPayment');
+    await SalaryPayment.deleteMany({ staffId: req.params.id });
+    res.json({ success: true, message: 'Staff, attendance, and salary payment data deleted' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

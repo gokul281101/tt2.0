@@ -76,6 +76,7 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
   const [filterDate, setFilterDate] = useState("");
   const [filterMonth, setFilterMonth] = useState(""); // YYYY-MM
   const [filterYear, setFilterYear] = useState(""); // YYYY
+  const [filterCategory, setFilterCategory] = useState("");
 
   // Dynamic Item/Purchase state
   const [formItem, setFormItem] = useState("");
@@ -133,7 +134,7 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
     setCart((prev) => prev.filter((_, i) => i !== index));
   }
 
-  // Filter logic: date, month, year
+  // Filter logic: date, month, year, category
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
       const tDate = new Date(t.date);
@@ -144,10 +145,11 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
       if (filterDate && dateStr !== filterDate) return false;
       if (filterMonth && monthKey !== filterMonth) return false;
       if (filterYear && year !== filterYear) return false;
+      if (filterCategory && t.category !== filterCategory) return false;
 
       return true;
     });
-  }, [transactions, filterDate, filterMonth, filterYear]);
+  }, [transactions, filterDate, filterMonth, filterYear, filterCategory]);
 
   // Sales totals (gross income for each payment method)
   const salesTotals = useMemo(() => {
@@ -271,6 +273,7 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
     setFilterDate("");
     setFilterMonth("");
     setFilterYear("");
+    setFilterCategory("");
   }
 
   return (
@@ -295,7 +298,7 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
             </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           <div>
             <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Date Filter</label>
             <input
@@ -339,10 +342,25 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
               <option value="2024">2024</option>
             </select>
           </div>
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Category Filter</label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full bg-input-background rounded-xl px-3 py-2 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">Select Category...</option>
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex items-end">
             <button
               onClick={clearFilters}
-              disabled={!filterDate && !filterMonth && !filterYear}
+              disabled={!filterDate && !filterMonth && !filterYear && !filterCategory}
               className="w-full py-2 bg-muted text-muted-foreground border rounded-xl text-xs font-bold hover:bg-muted/85 disabled:opacity-40 transition-all"
             >
               Reset Filters
@@ -529,7 +547,13 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
                 const max = categoryBreakdown[0]?.amt || 1;
                 const color = CATEGORY_COLORS[cat] || "#94a3b8";
                 return (
-                  <div key={cat} className="flex items-center gap-2 text-xs">
+                  <div
+                    key={cat}
+                    onClick={() => setFilterCategory(filterCategory === cat ? "" : cat)}
+                    className={`flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/40 p-1.5 -mx-1.5 rounded-xl transition-all ${
+                      filterCategory === cat ? "bg-muted/70 font-bold text-emerald-800" : ""
+                    }`}
+                  >
                     <span className="font-semibold w-24 truncate">{cat}</span>
                     <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                       <div

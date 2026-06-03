@@ -11,7 +11,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  
+
   // Validation & feedback state
   const [passwordError, setPasswordError] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -39,7 +39,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    
+
     const isPassValid = validatePassword(password);
 
     if (!isPassValid) {
@@ -52,11 +52,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
     try {
       const res = await api.login(password);
-      
+
       // Success!
       setIsLoading(false);
       setIsSuccess(true);
-      
+
       // Trigger confetti burst
       confetti({
         particleCount: 120,
@@ -64,7 +64,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         origin: { y: 0.6 },
         colors: ["#1a7a3c", "#f97316", "#eab308", "#10b981", "#34d399"]
       });
-      
+
       // Save session and token
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem("jsf_logged_in", "true");
@@ -85,13 +85,13 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     setPassword(adminPassword);
     setPasswordError("");
     setLoginError("");
-    
+
     setIsLoading(true);
     try {
       const res = await api.login(adminPassword);
       setIsLoading(false);
       setIsSuccess(true);
-      
+
       confetti({
         particleCount: 150,
         spread: 100,
@@ -116,6 +116,15 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-background px-4 py-12 font-[Plus_Jakarta_Sans,sans-serif]">
+      {/* Full-screen semi-transparent background watermark */}
+      <div className="fixed inset-0 pointer-events-none z-0 flex items-center justify-center opacity-[0.12] select-none" aria-hidden="true">
+        <img
+          src="/logo.png"
+          alt=""
+          className="w-[80vw] h-[80vw] max-w-[500px] max-h-[500px] object-contain filter grayscale dark:invert"
+        />
+      </div>
+
       {/* Dynamic Animated Blobs Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         <div className="blob-1 absolute bg-[#1a7a3c]/10 rounded-full blur-3xl w-[35rem] h-[35rem] -top-32 -left-32 animate-pulse" />
@@ -150,17 +159,17 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       `}</style>
 
       {/* Main Glassmorphic Login Card */}
-      <div 
-        className={`w-full max-w-[420px] bg-card/85 backdrop-blur-xl border border-border shadow-2xl rounded-3xl p-8 z-10 transition-all duration-500 hover:border-[#1a7a3c]/30 ${
-          shouldShake ? "shake-element" : ""
-        } ${isSuccess ? "scale-95 opacity-90 border-green-500/50" : ""}`}
+      <div
+        className={`w-full max-w-[420px] bg-card/85 backdrop-blur-xl border border-border shadow-2xl rounded-3xl p-8 z-10 transition-all duration-500 hover:border-[#1a7a3c]/30 ${shouldShake ? "shake-element" : ""
+          } ${isSuccess ? "scale-95 opacity-90 border-green-500/50" : ""}`}
       >
         {/* Brand/Header Section */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <div className="relative mb-3 flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 border border-[#1a7a3c]/20 shadow-inner group">
-            <span className="text-3xl transition-transform duration-300 group-hover:scale-125 select-none">🔑</span>
-            <div className="absolute inset-0 rounded-2xl bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-ping pointer-events-none" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="Trending Thamila Logo"
+            className="w-16 h-16 rounded-2xl object-cover border border-[#1a7a3c]/20 shadow-lg mb-3"
+          />
           <h2 className="text-2xl font-bold tracking-tight text-foreground select-none flex items-center gap-1.5 justify-center">
             Admin <span className="text-primary font-extrabold">Access</span>
           </h2>
@@ -171,7 +180,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
         {/* Form */}
         <form onSubmit={handleLogin} className="space-y-5">
-          
+
           {/* General Login Error Alert */}
           {loginError && (
             <div className="flex gap-2.5 items-start bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl p-3.5 animate-fadeIn">
@@ -203,11 +212,10 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 onBlur={() => validatePassword(password)}
                 disabled={isLoading || isSuccess}
                 autoFocus
-                className={`w-full pl-10 pr-12 py-3.5 bg-input-background rounded-2xl text-sm border focus:outline-none transition-all ${
-                  passwordError 
-                    ? "border-destructive/50 focus:border-destructive focus:ring-1 focus:ring-destructive" 
+                className={`w-full pl-10 pr-12 py-3.5 bg-input-background rounded-2xl text-sm border focus:outline-none transition-all ${passwordError
+                    ? "border-destructive/50 focus:border-destructive focus:ring-1 focus:ring-destructive"
                     : "border-border focus:border-primary focus:ring-1 focus:ring-primary"
-                }`}
+                  }`}
               />
               <button
                 type="button"
@@ -238,13 +246,12 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           <button
             type="submit"
             disabled={isLoading || isSuccess}
-            className={`w-full py-3.5 rounded-2xl text-sm font-bold text-white shadow-lg transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
-              isSuccess
+            className={`w-full py-3.5 rounded-2xl text-sm font-bold text-white shadow-lg transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${isSuccess
                 ? "bg-green-600 shadow-green-600/30 scale-[0.98]"
                 : isLoading
                   ? "bg-primary/80 opacity-90 cursor-not-allowed"
                   : "bg-primary hover:bg-[#156030] hover:shadow-[#1a7a3c]/20 hover:scale-[1.01] active:scale-[0.99] active:shadow-inner"
-            }`}
+              }`}
           >
             {isSuccess ? (
               <>

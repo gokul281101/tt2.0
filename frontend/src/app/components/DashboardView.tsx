@@ -168,8 +168,8 @@ export function DashboardView({
     const totalSalesIncome = cashIncome + gpayIncome + zomatoIncome;
     const balance = cash + gpay + zomato;
 
-    // Net Profit = Overall Balance − (Expenses + Commitments)
-    const netProfit = balance - (expensesTotal + totalCommitments);
+    // Net Profit = Overall Sales − (Expenses + Commitments)
+    const netProfit = totalSalesIncome - (expensesTotal + totalCommitments);
 
     return {
       cash,
@@ -254,7 +254,7 @@ export function DashboardView({
         {/* Formula calculation display */}
         <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap gap-4 items-center justify-between relative z-10">
           <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-2 text-xs flex items-center gap-1.5 border border-white/10 text-emerald-100">
-            <span className="font-bold text-emerald-300">Formula:</span> Net Profit = Overall Balance − (Expenses + Commitments)
+            <span className="font-bold text-emerald-300">Formula:</span> Net Profit = Overall Sales − (Expenses + Commitments)
           </div>
           <button
             onClick={() => onNavigateTo("reports")}
@@ -266,7 +266,7 @@ export function DashboardView({
       </div>
 
       {/* KPI Cards — order: Cash, GPay, Zomato, Expenses, Net Profit */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
 
         {/* Total Cash */}
         <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
@@ -316,6 +316,22 @@ export function DashboardView({
           </div>
         </div>
 
+        {/* Total Balance */}
+        <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Balance</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <Wallet size={15} />
+            </div>
+          </div>
+          <div>
+            <p className="text-2xl font-black font-[DM_Mono,monospace] text-emerald-700">
+              {fmt(stats.balance)}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-1">Combined digital & cash balance</p>
+          </div>
+        </div>
+
         {/* Total Expenses */}
         <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-4">
@@ -348,7 +364,7 @@ export function DashboardView({
             }`}>
               {fmt(stats.netProfit)}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-1">Balance − (Expenses + Commitments)</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Overall Sales − (Expenses + Commitments)</p>
           </div>
         </div>
 
@@ -526,7 +542,7 @@ export function DashboardView({
                         onDelete(t.id, t.type, t.shopId);
                       }
                     }}
-                    className="text-muted-foreground hover:text-destructive p-1 rounded-lg hover:bg-red-50 opacity-70 md:opacity-0 md:group-hover:opacity-100 hover:opacity-100 transition-opacity"
+                    className="text-muted-foreground hover:text-destructive p-1 rounded-lg hover:bg-red-50 opacity-70 hover:opacity-100 transition-opacity"
                     title="Delete Entry"
                   >
                     <Trash2 size={13} />

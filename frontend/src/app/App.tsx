@@ -44,8 +44,9 @@ import type {
   Staff,
   AttendanceRecord,
   SalaryPayment,
+  PurchaseCategory,
 } from "./types";
-import { SHOPS } from "./constants";
+import { SHOPS, PURCHASE_ITEMS } from "./constants";
 import { stockStatus } from "./components/StockView";
 
 // Views
@@ -236,6 +237,32 @@ export default function App() {
             await addPurchase(p as Purchase, targetShopId);
           })
         );
+      } else if (newTx.type === "expense" && PURCHASE_ITEMS[newTx.category as PurchaseCategory]) {
+        // Automatically create a purchase if it belongs to an inventory category
+        const cat = newTx.category as PurchaseCategory;
+        const matchedItem = PURCHASE_ITEMS[cat]?.find(
+          (i) => i.name.toLowerCase() === newTx.description.toLowerCase()
+        );
+        const itemName = matchedItem ? matchedItem.name : newTx.description || cat;
+        const unit = matchedItem ? matchedItem.unit : "pcs";
+        const basePrice = matchedItem ? matchedItem.basePrice : 1;
+        const quantity = matchedItem 
+          ? Number((newTx.amount / basePrice).toFixed(2)) || 1
+          : 1;
+        const pricePerUnit = Math.round((newTx.amount / quantity) * 100) / 100;
+
+        const p: Omit<Purchase, "id"> = {
+          itemName,
+          category: cat,
+          quantity,
+          unit,
+          pricePerUnit,
+          totalPrice: newTx.amount,
+          date: newTx.date,
+          expenseId: newTx.id,
+        };
+
+        await addPurchase(p as Purchase, targetShopId);
       }
     } catch (error) {
       console.error("Failed to add transaction:", error);
@@ -257,7 +284,7 @@ export default function App() {
           shop1: prev.shop1.filter((p) => p.expenseId !== id),
           shop2: prev.shop2.filter((p) => p.expenseId !== id),
         }));
-        
+
         // Reload stock for both shops to reflect inventory adjustments from deleted stock purchases
         const [stock1, stock2] = await Promise.all([
           api.getStock("shop1"),
@@ -275,9 +302,37 @@ export default function App() {
     }
   }
 
-  async function addPurchase(p: Purchase, targetShopId: ShopId = activeShop) {
+  async function addPurchase(p: Omit<Purchase, "id">, targetShopId: ShopId = activeShop) {
     try {
-      const newP = await api.addPurchase(targetShopId, p);
+      let expenseId = p.expenseId;
+      if (!expenseId) {
+        // Create an Expense transaction first
+        const t: Omit<Transaction, "id"> = {
+          type: "expense",
+          paymentMethod: "cash", // default payment method
+          amount: p.totalPrice,
+          category: p.category,
+          description: `Purchase: ${p.itemName} (${p.quantity} ${p.unit})`,
+          date: p.date,
+        };
+        const newTx = await api.addTransaction(targetShopId, t);
+        expenseId = newTx.id;
+
+        // Add to the local shopTransactions state
+        setShopTransactions((prev) => ({
+          ...prev,
+          shop1: [newTx, ...prev.shop1],
+          shop2: [newTx, ...prev.shop2],
+        }));
+      }
+
+      // Now create the purchase with the expenseId linked!
+      const purchaseWithExpense: Omit<Purchase, "id"> = {
+        ...p,
+        expenseId: expenseId,
+      };
+
+      const newP = await api.addPurchase(targetShopId, purchaseWithExpense as Purchase);
       setShopPurchases((prev) => ({
         ...prev,
         shop1: [newP, ...prev.shop1],
@@ -294,16 +349,25 @@ export default function App() {
 
   async function deletePurchase(id: string, targetShopId: ShopId = activeShop) {
     try {
-      await api.deletePurchase(targetShopId, id);
-      setShopPurchases((prev) => ({
-        ...prev,
-        shop1: prev.shop1.filter((p) => p.id !== id),
-        shop2: prev.shop2.filter((p) => p.id !== id),
-      }));
+      // Find the purchase to check if it has an expenseId
+      const targetShopPurchases = shopPurchases[targetShopId] || [];
+      const purchaseToDelete = targetShopPurchases.find((p) => p.id === id);
 
-      // Reload stock to reflect inventory adjustments
-      const updatedStock = await api.getStock(targetShopId);
-      setShopStock((prev) => ({ ...prev, [targetShopId]: updatedStock }));
+      if (purchaseToDelete && purchaseToDelete.expenseId) {
+        // If it has an expenseId, delete the transaction, which deletes the purchase too
+        await deleteTransaction(purchaseToDelete.expenseId, "expense", targetShopId);
+      } else {
+        // If no expenseId, delete the purchase only
+        await api.deletePurchase(targetShopId, id);
+        setShopPurchases((prev) => ({
+          ...prev,
+          shop1: prev.shop1.filter((p) => p.id !== id),
+          shop2: prev.shop2.filter((p) => p.id !== id),
+        }));
+        // Reload stock to reflect inventory adjustments
+        const updatedStock = await api.getStock(targetShopId);
+        setShopStock((prev) => ({ ...prev, [targetShopId]: updatedStock }));
+      }
     } catch (error) {
       console.error("Failed to delete purchase:", error);
     }
@@ -322,6 +386,7 @@ export default function App() {
     try {
       await api.deleteCommitment(activeShop, id);
       setCommitments((prev) => prev.filter((c) => c.id !== id));
+      setCommitmentPayments((prev) => prev.filter((p) => p.commitmentId !== id));
     } catch (error) {
       console.error("Failed to delete commitment:", error);
     }
@@ -523,6 +588,7 @@ export default function App() {
     try {
       await api.deleteStaff(id);
       setStaffList((prev) => prev.filter((s) => s.id !== id));
+      setSalaryPayments((prev) => prev.filter((p) => p.staffId !== id));
     } catch (err) {
       console.error(err);
     }
@@ -699,7 +765,7 @@ export default function App() {
       new Date().getMonth() + 1
     ).padStart(2, "0")}`;
     const report: { staffName: string; calculatedSalary: number }[] = [];
-    
+
     staffList.forEach((s) => {
       // Find present days in activeMonth
       const [y, m] = currentMonth.split("-").map(Number);
@@ -734,16 +800,24 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-background font-[Plus_Jakarta_Sans,sans-serif]">
+    <div className="min-h-screen bg-background font-[Plus_Jakarta_Sans,sans-serif] relative">
+      {/* Full-screen semi-transparent background watermark */}
+      <div className="fixed inset-0 pointer-events-none z-0 flex items-center justify-center opacity-[0.15] select-none" aria-hidden="true">
+        <img
+          src="/logo.png"
+          alt=""
+          className="w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] object-contain filter grayscale dark:invert"
+        />
+      </div>
       {/* Header */}
       <header className="px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-border bg-card shadow-sm gap-3">
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
-            style={{ backgroundColor: shop.color + "20" }}
-          >
-            {shop.emoji}
-          </div>
+          <img
+            src="/logo.png"
+            alt="Trending Thamila Logo"
+            className="w-9 h-9 rounded-xl object-cover border-2"
+            style={{ borderColor: shop.color }}
+          />
           <div className="hidden sm:block">
             <h1 className="text-base font-bold leading-tight">Trending Thamila Finance</h1>
             <p className="text-xs text-muted-foreground">{shop.name}</p>
@@ -754,101 +828,91 @@ export default function App() {
         <div className="flex gap-1 bg-muted rounded-xl p-1 overflow-x-auto max-w-[70%] flex-shrink-0">
           <button
             onClick={() => setMainView("dashboard")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              mainView === "dashboard"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mainView === "dashboard"
                 ? "bg-card shadow-sm text-foreground font-black"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <LayoutDashboard size={13} /> Dashboard
           </button>
           <button
             onClick={() => setMainView("sales")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              mainView === "sales"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mainView === "sales"
                 ? "bg-card shadow-sm text-foreground font-black"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <BadgeCent size={13} /> Sales
           </button>
           <button
             onClick={() => setMainView("purchases")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              mainView === "purchases"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mainView === "purchases"
                 ? "bg-card shadow-sm text-foreground font-black"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <ShoppingCart size={13} /> Purchases
           </button>
           <button
             onClick={() => setMainView("commitments")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              mainView === "commitments"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mainView === "commitments"
                 ? "bg-card shadow-sm text-foreground font-black"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <ClipboardList size={13} /> Commitments
           </button>
           <button
             onClick={() => setMainView("personal")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              mainView === "personal"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mainView === "personal"
                 ? "bg-card shadow-sm text-foreground font-black"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <HeartHandshake size={13} /> Personal
           </button>
           <button
             onClick={() => setMainView("debt")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              mainView === "debt"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mainView === "debt"
                 ? "bg-card shadow-sm text-foreground font-black"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <ShieldAlert size={13} /> Debt
           </button>
           <button
             onClick={() => setMainView("attendance")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              mainView === "attendance"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mainView === "attendance"
                 ? "bg-card shadow-sm text-foreground font-black"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <Users size={13} /> Attendance
           </button>
           <button
             onClick={() => setMainView("reports")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              mainView === "reports"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mainView === "reports"
                 ? "bg-card shadow-sm text-foreground font-black"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <ChartPie size={13} /> Reports
           </button>
           <button
             onClick={() => setMainView("settings")}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              mainView === "settings"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mainView === "settings"
                 ? "bg-card shadow-sm text-foreground font-black"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <Settings size={13} /> Settings
           </button>
           <button
             onClick={() => setMainView("stock")}
-            className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-              mainView === "stock"
+            className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${mainView === "stock"
                 ? "bg-card shadow-sm text-foreground font-black"
                 : "text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             <Boxes size={13} /> Stock
             {activeStockAlerts.out + activeStockAlerts.low > 0 && (
@@ -863,11 +927,10 @@ export default function App() {
         <div className="relative flex-shrink-0" ref={bellRef}>
           <button
             onClick={() => setShowBell((v) => !v)}
-            className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
-              showBell
+            className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${showBell
                 ? "bg-primary/10 text-primary"
                 : "bg-muted text-muted-foreground hover:text-foreground"
-            }`}
+              }`}
           >
             {totalAlerts > 0 ? <BellRing size={17} /> : <Bell size={17} />}
             {totalAlerts > 0 && (
@@ -1053,36 +1116,35 @@ export default function App() {
         mainView === "purchases" ||
         mainView === "commitments" ||
         mainView === "stock") && (
-        <div className="bg-card border-b border-border px-6">
-          <div className="flex gap-0 max-w-6xl mx-auto">
-            {(Object.keys(SHOPS) as ShopId[]).map((sid) => {
-              const s = SHOPS[sid];
-              const isActive = sid === activeShop;
-              const shopOut = (shopStock[sid] || []).filter((i) => stockStatus(i) === "out").length;
-              return (
-                <button
-                  key={sid}
-                  onClick={() => setActiveShop(sid)}
-                  className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 transition-all ${
-                    isActive
-                      ? "border-current"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
-                  style={isActive ? { color: s.color, borderColor: s.color } : {}}
-                >
-                  <Store size={14} />
-                  {s.name}
-                  {shopOut > 0 && (
-                    <span className="w-4 h-4 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center font-[DM_Mono,monospace]">
-                      {shopOut}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          <div className="bg-card border-b border-border px-6">
+            <div className="flex gap-0 max-w-6xl mx-auto">
+              {(Object.keys(SHOPS) as ShopId[]).map((sid) => {
+                const s = SHOPS[sid];
+                const isActive = sid === activeShop;
+                const shopOut = (shopStock[sid] || []).filter((i) => stockStatus(i) === "out").length;
+                return (
+                  <button
+                    key={sid}
+                    onClick={() => setActiveShop(sid)}
+                    className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold border-b-2 transition-all ${isActive
+                        ? "border-current"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                      }`}
+                    style={isActive ? { color: s.color, borderColor: s.color } : {}}
+                  >
+                    <Store size={14} />
+                    {s.name}
+                    {shopOut > 0 && (
+                      <span className="w-4 h-4 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center font-[DM_Mono,monospace]">
+                        {shopOut}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Global Shopping lists reminder */}
       {allWantedItems.length > 0 && (
@@ -1268,9 +1330,8 @@ export default function App() {
           >
             <Plus
               size={28}
-              className={`transform transition-transform duration-300 ${
-                showQuickEntry ? "rotate-45" : ""
-              }`}
+              className={`transform transition-transform duration-300 ${showQuickEntry ? "rotate-45" : ""
+                }`}
             />
           </button>
         </div>
@@ -1301,22 +1362,20 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setQuickIncShop("shop1")}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
-                      quickIncShop === "shop1"
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${quickIncShop === "shop1"
                         ? "bg-emerald-50 text-emerald-800 border-emerald-400"
                         : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
-                    }`}
+                      }`}
                   >
                     🥤 Theppakulam Shop
                   </button>
                   <button
                     type="button"
                     onClick={() => setQuickIncShop("shop2")}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
-                      quickIncShop === "shop2"
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${quickIncShop === "shop2"
                         ? "bg-sky-50 text-sky-800 border-sky-400"
                         : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
-                    }`}
+                      }`}
                   >
                     🍹 Anuppanadi Shop
                   </button>
@@ -1330,33 +1389,30 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setQuickIncPayment("cash")}
-                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-                      quickIncPayment === "cash"
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${quickIncPayment === "cash"
                         ? "bg-amber-50 text-amber-700 border-amber-300"
                         : "bg-muted text-muted-foreground border-transparent"
-                    }`}
+                      }`}
                   >
                     <Banknote size={14} /> Cash
                   </button>
                   <button
                     type="button"
                     onClick={() => setQuickIncPayment("gpay")}
-                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-                      quickIncPayment === "gpay"
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${quickIncPayment === "gpay"
                         ? "bg-sky-50 text-sky-700 border-sky-300"
                         : "bg-muted text-muted-foreground border-transparent"
-                    }`}
+                      }`}
                   >
                     <Smartphone size={14} /> GPay
                   </button>
                   <button
                     type="button"
                     onClick={() => setQuickIncPayment("zomato")}
-                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-                      quickIncPayment === "zomato"
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${quickIncPayment === "zomato"
                         ? "bg-orange-50 text-orange-600 border-orange-300"
                         : "bg-muted text-muted-foreground border-transparent"
-                    }`}
+                      }`}
                   >
                     <Flame size={14} /> Zomato
                   </button>
@@ -1434,7 +1490,10 @@ export default function App() {
                 <label className="text-xs font-bold text-muted-foreground mb-1 block">Category</label>
                 <select
                   value={quickExpCategory}
-                  onChange={(e) => setQuickExpCategory(e.target.value)}
+                  onChange={(e) => {
+                    setQuickExpCategory(e.target.value);
+                    setQuickExpDesc("");
+                  }}
                   required
                   className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
                 >
@@ -1454,6 +1513,29 @@ export default function App() {
                 </select>
               </div>
 
+              {/* Item Selection (Shown only for Inventory Categories) */}
+              {quickExpCategory && PURCHASE_ITEMS[quickExpCategory as PurchaseCategory] && (
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground mb-1 block">Item</label>
+                  <select
+                    value={PURCHASE_ITEMS[quickExpCategory as PurchaseCategory].some(i => i.name === quickExpDesc) ? quickExpDesc : ""}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setQuickExpDesc(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Select item...</option>
+                    {PURCHASE_ITEMS[quickExpCategory as PurchaseCategory].map((item) => (
+                      <option key={item.name} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Payment Method Selector */}
               <div>
                 <label className="text-xs font-bold text-muted-foreground mb-1.5 block">Payment Method</label>
@@ -1461,33 +1543,30 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setQuickExpPayment("cash")}
-                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-                      quickExpPayment === "cash"
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${quickExpPayment === "cash"
                         ? "bg-amber-50 text-amber-700 border-amber-300"
                         : "bg-muted text-muted-foreground border-transparent"
-                    }`}
+                      }`}
                   >
                     <Banknote size={14} /> Cash
                   </button>
                   <button
                     type="button"
                     onClick={() => setQuickExpPayment("gpay")}
-                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-                      quickExpPayment === "gpay"
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${quickExpPayment === "gpay"
                         ? "bg-sky-50 text-sky-700 border-sky-300"
                         : "bg-muted text-muted-foreground border-transparent"
-                    }`}
+                      }`}
                   >
                     <Smartphone size={14} /> GPay
                   </button>
                   <button
                     type="button"
                     onClick={() => setQuickExpPayment("zomato")}
-                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-                      quickExpPayment === "zomato"
+                    className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold border transition-all ${quickExpPayment === "zomato"
                         ? "bg-orange-50 text-orange-600 border-orange-300"
                         : "bg-muted text-muted-foreground border-transparent"
-                    }`}
+                      }`}
                   >
                     <Flame size={14} /> Zomato
                   </button>

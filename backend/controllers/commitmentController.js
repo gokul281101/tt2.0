@@ -46,6 +46,8 @@ exports.update = async (req, res) => {
 exports.remove = async (req, res) => {
   try {
     await Commitment.findByIdAndDelete(req.params.id);
+    const CommitmentPayment = require('../models/CommitmentPayment');
+    await CommitmentPayment.deleteMany({ commitmentId: req.params.id });
     res.json({ success: true, message: 'Deleted' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
