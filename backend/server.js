@@ -12,7 +12,12 @@ const app = express();
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+    if (
+      !origin ||
+      /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+      origin.endsWith('.vercel.app') ||
+      origin === 'https://tt2-0.vercel.app'
+    ) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
