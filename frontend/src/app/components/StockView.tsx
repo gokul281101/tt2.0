@@ -77,6 +77,15 @@ export function StockView({ shopId, stock, onUpdate }: StockViewProps) {
   const [fUnit, setFUnit] = useState<PurchaseUnit>("kg");
   const [fMin, setFMin] = useState("");
 
+  // Edit form states
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editItem, setEditItem] = useState<StockItem | null>(null);
+  const [eName, setEName] = useState("");
+  const [eCat, setECat] = useState<PurchaseCategory>("Fruits & Vegetables");
+  const [eQty, setEQty] = useState("");
+  const [eUnit, setEUnit] = useState<PurchaseUnit>("kg");
+  const [eMin, setEMin] = useState("");
+
   function update(id: string, patch: Partial<StockItem>) {
     onUpdate(stock.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
@@ -112,6 +121,19 @@ export function StockView({ shopId, stock, onUpdate }: StockViewProps) {
     setFQty("");
     setFMin("");
     setShowAddForm(false);
+  }
+
+  function submitEdit() {
+    if (!editItem || !eName || !eQty) return;
+    update(editItem.id, {
+      name: eName,
+      category: eCat,
+      currentQty: parseFloat(eQty),
+      unit: eUnit,
+      minThreshold: eMin ? parseFloat(eMin) : 0,
+    });
+    setEditItem(null);
+    setShowEditForm(false);
   }
 
   const filteredStock = useMemo(() => {
@@ -300,10 +322,26 @@ export function StockView({ shopId, stock, onUpdate }: StockViewProps) {
                         {item.wanted ? "Wanted" : "Want"}
                       </button>
 
+                      {/* Edit Button */}
+                      <button
+                        onClick={() => {
+                          setEditItem(item);
+                          setEName(item.name);
+                          setECat(item.category);
+                          setEQty(String(item.currentQty));
+                          setEUnit(item.unit);
+                          setEMin(String(item.minThreshold));
+                          setShowEditForm(true);
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-border text-muted-foreground bg-card hover:bg-muted/50 cursor-pointer"
+                      >
+                        Edit
+                      </button>
+
                       {/* Delete */}
                       <button
                         onClick={() => removeItem(item.id)}
-                        className="p-1.5 rounded-lg text-muted-foreground opacity-70 md:opacity-0 md:group-hover:opacity-100 hover:text-destructive hover:bg-red-50 hover:opacity-100 transition-all"
+                        className="p-1.5 rounded-lg text-muted-foreground opacity-70 md:opacity-0 md:group-hover:opacity-100 hover:text-destructive hover:bg-red-50 hover:opacity-100 transition-all cursor-pointer"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -565,7 +603,7 @@ export function StockView({ shopId, stock, onUpdate }: StockViewProps) {
                       onChange={(e) => setFUnit(e.target.value as PurchaseUnit)}
                       className="w-full bg-input-background rounded-xl px-3 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring appearance-none"
                     >
-                      {(["kg", "pcs", "packets", "liters", "dozen", "boxes"] as PurchaseUnit[]).map(
+                      {(["kg", "gram", "liter", "packet", "packets", "box", "boxes", "pcs", "dozen"] as PurchaseUnit[]).map(
                         (u) => (
                           <option key={u}>{u}</option>
                         )
@@ -597,6 +635,127 @@ export function StockView({ shopId, stock, onUpdate }: StockViewProps) {
                 style={{ backgroundColor: shop.color }}
               >
                 Add to Stock
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Edit Stock Item Modal */}
+      {showEditForm && editItem && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <h3 className="text-base font-bold">Edit Stock Item</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditForm(false);
+                  setEditItem(null);
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitEdit();
+              }}
+              className="p-5 space-y-4"
+            >
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                  Category
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {(Object.keys(PURCHASE_ITEMS) as PurchaseCategory[]).map((cat) => {
+                    const Icon = CAT_ICONS[cat] || Package;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setECat(cat)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border text-left transition-all ${
+                          eCat === cat
+                            ? "bg-primary/10 border-primary/40 text-primary"
+                            : "bg-muted border-transparent text-muted-foreground"
+                        }`}
+                      >
+                        <Icon size={13} />
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                  Item Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Dragon Fruit"
+                  value={eName}
+                  onChange={(e) => setEName(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                    Current Qty
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={eQty}
+                    onChange={(e) => setEQty(e.target.value)}
+                    className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <div className="w-28">
+                  <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                    Unit
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={eUnit}
+                      onChange={(e) => setEUnit(e.target.value as PurchaseUnit)}
+                      className="w-full bg-input-background rounded-xl px-3 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring appearance-none animate-none"
+                    >
+                      {(["kg", "gram", "liter", "packet", "packets", "box", "boxes", "pcs", "dozen"] as PurchaseUnit[]).map(
+                        (u) => (
+                          <option key={u}>{u}</option>
+                        )
+                      )}
+                    </select>
+                    <ChevronDown
+                      size={12}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                  Min Threshold (alert when below)
+                </label>
+                <input
+                  type="number"
+                  placeholder="e.g. 5"
+                  value={eMin}
+                  onChange={(e) => setEMin(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-sm font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!eName || !eQty}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 hover:opacity-90 cursor-pointer"
+                style={{ backgroundColor: shop.color }}
+              >
+                Save Changes
               </button>
             </form>
           </div>

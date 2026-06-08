@@ -11,7 +11,7 @@ interface AttendanceViewProps {
   onAddStaff: (s: Omit<Staff, "id">) => void;
   onDeleteStaff: (id: string) => void;
   onUpdateStaff: (id: string, s: Partial<Staff> & { effectiveDate?: string }) => void;
-  onSaveAttendance: (staffId: string, date: string, status: "present" | "absent") => void;
+  onSaveAttendance: (staffId: string, date: string, status: "present" | "absent" | "half-day") => void;
   onPaySalary: (p: Omit<SalaryPayment, "id">) => void;
   onDeleteSalaryPayment: (id: string) => void;
 }
@@ -66,7 +66,7 @@ export function AttendanceView({
   );
 
   const [salaryReport, setSalaryReport] = useState<
-    { staff: Staff; presentDays: number; absentDays: number; calculatedSalary: number }[]
+    { staff: Staff; presentDays: number; halfDays: number; absentDays: number; calculatedSalary: number }[]
   >([]);
 
   // Load monthly salary report from API
@@ -84,7 +84,7 @@ export function AttendanceView({
 
   // Find attendance record for a staff member on the activeDate
   const dailyStatusMap = useMemo(() => {
-    const map: Record<string, "present" | "absent" | "none"> = {};
+    const map: Record<string, "present" | "absent" | "half-day" | "none"> = {};
     staffList.forEach((s) => {
       map[s.id] = "none";
     });
@@ -231,7 +231,7 @@ export function AttendanceView({
                       </button>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <button
                         onClick={() => onSaveAttendance(s.id, activeDate, "present")}
                         className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border flex items-center justify-center gap-1 transition-all ${
@@ -241,6 +241,16 @@ export function AttendanceView({
                         }`}
                       >
                         <Check size={11} /> Present
+                      </button>
+                      <button
+                        onClick={() => onSaveAttendance(s.id, activeDate, "half-day")}
+                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border flex items-center justify-center gap-1 transition-all ${
+                          status === "half-day"
+                            ? "bg-amber-600 text-white border-amber-600"
+                            : "bg-card text-muted-foreground border-border hover:bg-muted/50"
+                        }`}
+                      >
+                        Half Day
                       </button>
                       <button
                         onClick={() => onSaveAttendance(s.id, activeDate, "absent")}
@@ -282,6 +292,7 @@ export function AttendanceView({
                   <th className="py-2.5">Staff Name</th>
                   <th className="py-2.5">Wage rate</th>
                   <th className="py-2.5 text-center">Days Present</th>
+                  <th className="py-2.5 text-center">Half Days</th>
                   <th className="py-2.5 text-center">Days Absent</th>
                   <th className="py-2.5 text-right">Calculated Salary</th>
                   <th className="py-2.5 text-right">Action</th>
@@ -290,7 +301,7 @@ export function AttendanceView({
               <tbody className="divide-y divide-border/40">
                 {salaryReport.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={7} className="text-center py-8 text-muted-foreground">
                       No reports generated for this month.
                     </td>
                   </tr>
@@ -313,6 +324,7 @@ export function AttendanceView({
                         </button>
                       </td>
                       <td className="py-3.5 text-center text-green-700 font-bold">{r.presentDays}</td>
+                      <td className="py-3.5 text-center text-amber-600 font-bold">{r.halfDays || 0}</td>
                       <td className="py-3.5 text-center text-red-600 font-bold">{r.absentDays}</td>
                       <td className="py-3.5 text-right font-black text-emerald-800 font-[DM_Mono]">
                         {fmt(r.calculatedSalary)}

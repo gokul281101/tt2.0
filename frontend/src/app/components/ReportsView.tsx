@@ -16,10 +16,12 @@ import {
   AreaChart,
   Area,
 } from "recharts";
-import { ChartColumnDecreasing, Store, Landmark, Percent, Layers, ShieldCheck, Users } from "lucide-react";
+import { ChartColumnDecreasing, Store, Landmark, Percent, Layers, ShieldCheck, Users, FileText, Download } from "lucide-react";
 import type { Transaction, Purchase, Debt, ShopId } from "../types";
 import { SHOPS } from "../constants";
 import { fmt, fmtShort } from "../utils";
+import { jsPDF } from "jspdf";
+import "jspdf-autotable";
 
 interface ReportsViewProps {
   transactions: Record<ShopId, Transaction[]>;
@@ -30,6 +32,240 @@ interface ReportsViewProps {
 
 export function ReportsView({ transactions, purchases, debts, salaryReport }: ReportsViewProps) {
   const [period, setPeriod] = useState<"30d" | "90d" | "all">("30d");
+
+  // PDF report states
+  const [startDate, setStartDate] = useState(
+    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+  );
+  const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
+  const [reportType, setReportType] = useState<"sales" | "expenses" | "purchases" | "debts" | "attendance" | "summary">("summary");
+
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF() as any;
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(22);
+    doc.setTextColor(6, 78, 59); // Dark emerald theme
+    doc.text("Trending Thamila Finance Report", 14, 20);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString("en-IN")}`, 14, 27);
+    doc.text(`Report Period: ${startDate} to ${endDate}`, 14, 33);
+    doc.text(`Report Type: ${reportType.toUpperCase()}`, 14, 39);
+
+    doc.setDrawColor(220, 220, 220);
+    doc.line(14, 43, 196, 43);
+
+    let currentY = 50;
+
+    if (reportType === "sales") {
+      const sales = allTxns.filter(t => t.type === "income" && new Date(t.date) >= start && new Date(t.date) <= end);
+      const totalSales = sales.reduce((sum, t) => sum + t.amount, 0);
+
+      doc.setFontSize(12);
+      doc.setTextColor(50, 50, 50);
+      doc.text(`Total Sales Revenue: INR ${totalSales.toLocaleString("en-IN")}`, 14, currentY);
+      currentY += 8;
+
+      const tableBody = sales.map(t => [
+        new Date(t.date).toLocaleDateString("en-IN"),
+        SHOPS[t.shopId]?.name || t.shopId,
+        t.category,
+        t.description || "N/A",
+        t.paymentMethod.toUpperCase(),
+        t.amount
+      ]);
+
+      doc.autoTable({
+        startY: currentY,
+        head: [["Date", "Shop Branch", "Category", "Description", "Payment Method", "Amount (INR)"]],
+        body: tableBody,
+        theme: "striped",
+        headStyles: { fillColor: [4, 120, 87] }
+      });
+    } else if (reportType === "expenses") {
+      const expenses = allTxns.filter(t => t.type === "expense" && new Date(t.date) >= start && new Date(t.date) <= end);
+      const totalExpenses = expenses.reduce((sum, t) => sum + t.amount, 0);
+
+      doc.setFontSize(12);
+      doc.setTextColor(50, 50, 50);
+      doc.text(`Total Expenses: INR ${totalExpenses.toLocaleString("en-IN")}`, 14, currentY);
+      currentY += 8;
+
+      // Highlights of highly spent expenses
+      const highlySpent = [...expenses].sort((a, b) => b.amount - a.amount).slice(0, 5);
+      if (highlySpent.length > 0) {
+        doc.setFontSize(11);
+        doc.text("Top 5 Highest Spent Expenses:", 14, currentY);
+        currentY += 6;
+        doc.setFontSize(9);
+        highlySpent.forEach((exp, idx) => {
+          doc.text(`${idx + 1}. ${exp.category} - ${exp.description || 'No Description'}: INR ${exp.amount.toLocaleString("en-IN")} on ${new Date(exp.date).toLocaleDateString("en-IN")}`, 18, currentY);
+          currentY += 5.5;
+        });
+        currentY += 5;
+      }
+
+      const tableBody = expenses.map(t => [
+        new Date(t.date).toLocaleDateString("en-IN"),
+        t.category,
+        t.description || "N/A",
+        t.paymentMethod.toUpperCase(),
+        t.amount
+      ]);
+
+      doc.autoTable({
+        startY: currentY,
+        head: [["Date", "Category", "Description", "Payment Method", "Amount (INR)"]],
+        body: tableBody,
+        theme: "striped",
+        headStyles: { fillColor: [217, 119, 6] }
+      });
+    } else if (reportType === "purchases") {
+      const filtered = allPurchases.filter(p => new Date(p.date) >= start && new Date(p.date) <= end);
+      const totalPurchases = filtered.reduce((sum, p) => sum + p.totalPrice, 0);
+
+      doc.setFontSize(12);
+      doc.setTextColor(50, 50, 50);
+      doc.text(`Total Purchases: INR ${totalPurchases.toLocaleString("en-IN")}`, 14, currentY);
+      currentY += 8;
+
+      const highlySpent = [...filtered].sort((a, b) => b.totalPrice - a.totalPrice).slice(0, 5);
+      if (highlySpent.length > 0) {
+        doc.setFontSize(11);
+        doc.text("Top 5 Highest Spent Purchases:", 14, currentY);
+        currentY += 6;
+        doc.setFontSize(9);
+        highlySpent.forEach((p, idx) => {
+          doc.text(`${idx + 1}. ${p.itemName} (${p.quantity} ${p.unit}) - Category: ${p.category}: INR ${p.totalPrice.toLocaleString("en-IN")} on ${new Date(p.date).toLocaleDateString("en-IN")}`, 18, currentY);
+          currentY += 5.5;
+        });
+        currentY += 5;
+      }
+
+      const tableBody = filtered.map(p => [
+        new Date(p.date).toLocaleDateString("en-IN"),
+        p.itemName,
+        p.category,
+        `${p.quantity} ${p.unit}`,
+        p.pricePerUnit,
+        p.totalPrice
+      ]);
+
+      doc.autoTable({
+        startY: currentY,
+        head: [["Date", "Product", "Category", "Qty", "Price/Unit (INR)", "Total Price (INR)"]],
+        body: tableBody,
+        theme: "striped",
+        headStyles: { fillColor: [13, 148, 136] }
+      });
+    } else if (reportType === "debts") {
+      doc.setFontSize(12);
+      doc.setTextColor(50, 50, 50);
+      doc.text("Outstanding Debt Liabilities:", 14, currentY);
+      currentY += 8;
+
+      const tableBody = debts.map(d => [
+        d.debtName,
+        d.creditorName,
+        d.originalAmount,
+        d.remainingAmount,
+        new Date(d.dueDate).toLocaleDateString("en-IN"),
+        d.status.toUpperCase()
+      ]);
+
+      doc.autoTable({
+        startY: currentY,
+        head: [["Debt Name", "Creditor", "Original (INR)", "Remaining (INR)", "Due Date", "Status"]],
+        body: tableBody,
+        theme: "striped",
+        headStyles: { fillColor: [220, 38, 38] }
+      });
+    } else if (reportType === "attendance") {
+      doc.setFontSize(12);
+      doc.setTextColor(50, 50, 50);
+      doc.text("Employee Wages Statement:", 14, currentY);
+      currentY += 8;
+
+      const tableBody = salaryReport.map(s => [
+        s.staffName,
+        s.calculatedSalary
+      ]);
+
+      doc.autoTable({
+        startY: currentY,
+        head: [["Employee Name", "Calculated Wages (INR)"]],
+        body: tableBody,
+        theme: "striped",
+        headStyles: { fillColor: [99, 102, 241] }
+      });
+    } else {
+      // Overall Summary
+      const sales = allTxns.filter(t => t.type === "income" && new Date(t.date) >= start && new Date(t.date) <= end);
+      const expenses = allTxns.filter(t => t.type === "expense" && new Date(t.date) >= start && new Date(t.date) <= end);
+      const totalSales = sales.reduce((sum, t) => sum + t.amount, 0);
+      const totalExpenses = expenses.reduce((sum, t) => sum + t.amount, 0);
+
+      doc.setFontSize(12);
+      doc.setTextColor(50, 50, 50);
+      doc.text(`Total Sales Revenue: INR ${totalSales.toLocaleString("en-IN")}`, 14, currentY);
+      currentY += 6;
+      doc.text(`Total Expenses: INR ${totalExpenses.toLocaleString("en-IN")}`, 14, currentY);
+      currentY += 6;
+      doc.text(`Net Balance / Profit: INR ${(totalSales - totalExpenses).toLocaleString("en-IN")}`, 14, currentY);
+      currentY += 10;
+
+      // Highlights of highly spent expenses
+      const highlySpent = [...expenses].sort((a, b) => b.amount - a.amount).slice(0, 5);
+      if (highlySpent.length > 0) {
+        doc.setFontSize(11);
+        doc.text("Top 5 Highest Spent Expenses:", 14, currentY);
+        currentY += 6;
+        doc.setFontSize(9);
+        highlySpent.forEach((exp, idx) => {
+          doc.text(`${idx + 1}. ${exp.category} - ${exp.description || 'No Description'}: INR ${exp.amount.toLocaleString("en-IN")} on ${new Date(exp.date).toLocaleDateString("en-IN")}`, 18, currentY);
+          currentY += 5.5;
+        });
+        currentY += 6;
+      }
+
+      // Day-wise breakdown
+      const dayMap: Record<string, { income: number; expense: number }> = {};
+      const allFilteredTx = allTxns.filter(t => new Date(t.date) >= start && new Date(t.date) <= end);
+      allFilteredTx.forEach(t => {
+        const dayKey = new Date(t.date).toLocaleDateString("en-IN");
+        if (!dayMap[dayKey]) dayMap[dayKey] = { income: 0, expense: 0 };
+        if (t.type === "income") dayMap[dayKey].income += t.amount;
+        else dayMap[dayKey].expense += t.amount;
+      });
+
+      const dayWiseBody = Object.entries(dayMap).map(([date, val]) => [
+        date,
+        val.income,
+        val.expense,
+        val.income - val.expense
+      ]).sort((a, b) => {
+        const [d1, m1, y1] = a[0].split("/").map(Number);
+        const [d2, m2, y2] = b[0].split("/").map(Number);
+        return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
+      });
+
+      doc.autoTable({
+        startY: currentY,
+        head: [["Date", "Income (INR)", "Expenses (INR)", "Net Balance (INR)"]],
+        body: dayWiseBody,
+        theme: "striped",
+        headStyles: { fillColor: [4, 120, 87] }
+      });
+    }
+
+    doc.save(`Trending_Thamila_${reportType}_${startDate}_to_${endDate}.pdf`);
+  };
 
   // Merge all transactions
   const allTxns = useMemo(() => {
@@ -233,6 +469,55 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
               {p === "30d" ? "Last 30 Days" : p === "90d" ? "Last 90 Days" : "All Time"}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* PDF Generation Panel */}
+      <div className="bg-card rounded-2xl border border-border p-5 shadow-sm space-y-4">
+        <div className="flex items-center gap-2">
+          <FileText className="text-emerald-700" size={18} />
+          <h3 className="text-sm font-bold text-foreground">Date-wise PDF Report Builder</h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground mb-1 block">Report Type</label>
+            <select
+              value={reportType}
+              onChange={(e: any) => setReportType(e.target.value)}
+              className="w-full bg-input-background rounded-xl px-3 py-2 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="summary">Overall Finance Summary</option>
+              <option value="sales">Sales Report</option>
+              <option value="expenses">Expense Report</option>
+              <option value="purchases">Purchase Report</option>
+              <option value="debts">Debt Report</option>
+              <option value="attendance">Attendance Report</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground mb-1 block">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full bg-input-background rounded-xl px-3 py-2 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground mb-1 block">End Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full bg-input-background rounded-xl px-3 py-2 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <button
+            onClick={handleDownloadPDF}
+            className="w-full bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl px-4 py-2 text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
+          >
+            <Download size={14} /> Download PDF
+          </button>
         </div>
       </div>
 

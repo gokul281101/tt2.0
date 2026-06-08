@@ -303,7 +303,7 @@ export function PurchasesView({
                     onChange={(e) => setFormUnit(e.target.value as PurchaseUnit)}
                     className="w-full bg-input-background rounded-xl px-2 py-2.5 text-sm border border-border focus:outline-none focus:ring-2 focus:ring-ring appearance-none"
                   >
-                    {(["kg", "pcs", "packets", "liters", "dozen", "boxes"] as PurchaseUnit[]).map(
+                    {(["kg", "gram", "liter", "packet", "packets", "box", "boxes", "pcs", "dozen"] as PurchaseUnit[]).map(
                       (u) => (
                         <option key={u} value={u}>
                           {u}

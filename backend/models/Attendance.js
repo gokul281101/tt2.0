@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const AttendanceSchema = new mongoose.Schema({
   staffId: { type: mongoose.Schema.Types.ObjectId, ref: 'Staff', required: true },
   date: { type: Date, required: true },
-  status: { type: String, enum: ['present', 'absent'], required: true }
+  status: { type: String, enum: ['present', 'absent', 'half-day'], required: true }
 }, { timestamps: true });
 
 // Combine staffId and date to be unique so there is only one entry per employee per day

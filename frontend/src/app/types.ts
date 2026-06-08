@@ -21,7 +21,7 @@ export type PurchaseCategory =
   | "Dry Fruits"
   | "Cleaning Utility"
   | "Essence";
-export type PurchaseUnit = "kg" | "pcs" | "packets" | "liters" | "dozen" | "boxes";
+export type PurchaseUnit = "kg" | "gram" | "liter" | "packet" | "packets" | "box" | "boxes" | "pcs" | "dozen";
 export type StockStatus = "none" | "in-stock" | "wanted";
 export type InventoryLevel = "ok" | "low" | "out";
 
@@ -131,7 +131,7 @@ export interface AttendanceRecord {
   id: string;
   staffId: string;
   date: Date;
-  status: "present" | "absent";
+  status: "present" | "absent" | "half-day";
 }
 
 export interface SalaryPayment {

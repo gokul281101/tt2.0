@@ -604,7 +604,7 @@ export default function App() {
   }
 
 
-  async function handleSaveAttendance(staffId: string, date: string, status: "present" | "absent") {
+  async function handleSaveAttendance(staffId: string, date: string, status: "present" | "absent" | "half-day") {
     try {
       const record = await api.saveAttendance(staffId, date, status);
       setAttendanceRecords((prev) => {
@@ -780,9 +780,17 @@ export default function App() {
           r.date < end
       ).length;
 
+      const halfDays = attendanceRecords.filter(
+        (r) =>
+          r.staffId === s.id &&
+          r.status === "half-day" &&
+          r.date >= start &&
+          r.date < end
+      ).length;
+
       report.push({
         staffName: s.name,
-        calculatedSalary: presentDays * s.dailyWage,
+        calculatedSalary: (presentDays + halfDays * 0.5) * s.dailyWage,
       });
     });
     return report;

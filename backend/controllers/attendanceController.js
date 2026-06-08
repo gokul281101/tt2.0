@@ -185,6 +185,7 @@ exports.getSalaryReport = async (req, res) => {
       });
 
       let presentCount = 0;
+      let halfDayCount = 0;
       let absentCount = 0;
       let calculatedSalary = 0;
 
@@ -192,6 +193,9 @@ exports.getSalaryReport = async (req, res) => {
         if (att.status === 'present') {
           presentCount++;
           calculatedSalary += getDailyWageForDate(s, att.date);
+        } else if (att.status === 'half-day') {
+          halfDayCount++;
+          calculatedSalary += getDailyWageForDate(s, att.date) * 0.5;
         } else if (att.status === 'absent') {
           absentCount++;
         }
@@ -200,6 +204,7 @@ exports.getSalaryReport = async (req, res) => {
       report.push({
         staff: s,
         presentDays: presentCount,
+        halfDays: halfDayCount,
         absentDays: absentCount,
         calculatedSalary: calculatedSalary
       });

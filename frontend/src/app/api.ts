@@ -541,7 +541,7 @@ export const api = {
     return (result.data || []).map(mapAttendanceToFrontend);
   },
 
-  async saveAttendance(staffId: string, date: string, status: "present" | "absent"): Promise<AttendanceRecord> {
+  async saveAttendance(staffId: string, date: string, status: "present" | "absent" | "half-day"): Promise<AttendanceRecord> {
     const response = await fetch(`${BASE_URL}/attendance`, {
       method: "POST",
       headers: getHeaders(),
