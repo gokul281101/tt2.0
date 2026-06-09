@@ -21,7 +21,7 @@ import type { Transaction, Purchase, Debt, ShopId } from "../types";
 import { SHOPS } from "../constants";
 import { fmt, fmtShort } from "../utils";
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 interface ReportsViewProps {
   transactions: Record<ShopId, Transaction[]>;
@@ -81,7 +81,7 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
         t.amount
       ]);
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: currentY,
         head: [["Date", "Shop Branch", "Category", "Description", "Payment Method", "Amount (INR)"]],
         body: tableBody,
@@ -119,7 +119,7 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
         t.amount
       ]);
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: currentY,
         head: [["Date", "Category", "Description", "Payment Method", "Amount (INR)"]],
         body: tableBody,
@@ -157,7 +157,7 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
         p.totalPrice
       ]);
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: currentY,
         head: [["Date", "Product", "Category", "Qty", "Price/Unit (INR)", "Total Price (INR)"]],
         body: tableBody,
@@ -179,7 +179,7 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
         d.status.toUpperCase()
       ]);
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: currentY,
         head: [["Debt Name", "Creditor", "Original (INR)", "Remaining (INR)", "Due Date", "Status"]],
         body: tableBody,
@@ -197,7 +197,7 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
         s.calculatedSalary
       ]);
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: currentY,
         head: [["Employee Name", "Calculated Wages (INR)"]],
         body: tableBody,
@@ -255,7 +255,7 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
         return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
       });
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: currentY,
         head: [["Date", "Income (INR)", "Expenses (INR)", "Net Balance (INR)"]],
         body: dayWiseBody,
