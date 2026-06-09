@@ -251,11 +251,8 @@ export function DashboardView({
           </div>
         </div>
 
-        {/* Formula calculation display */}
-        <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap gap-4 items-center justify-between relative z-10">
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-2 text-xs flex items-center gap-1.5 border border-white/10 text-emerald-100">
-            <span className="font-bold text-emerald-300">Formula:</span> Net Profit = Overall Sales − (Expenses + Commitments)
-          </div>
+        {/* Detailed Reports link display */}
+        <div className="mt-6 pt-5 border-t border-white/10 flex justify-end relative z-10">
           <button
             onClick={() => onNavigateTo("reports")}
             className="flex items-center gap-1 text-xs font-bold text-emerald-300 hover:text-white transition-colors"

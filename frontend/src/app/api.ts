@@ -556,7 +556,10 @@ export const api = {
     const response = await fetch(`${BASE_URL}/attendance/salary?monthKey=${monthKey}`, { headers: getHeaders() });
     const result = await response.json();
     if (!result.success) throw new Error(result.message || "Failed to retrieve salary report");
-    return result.data || [];
+    return (result.data || []).map((r: any) => ({
+      ...r,
+      staff: mapStaffToFrontend(r.staff)
+    }));
   },
 
   async deleteTransaction(shopId: ShopId, id: string, type: TransactionType): Promise<void> {

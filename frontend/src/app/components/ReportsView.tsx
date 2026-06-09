@@ -250,8 +250,8 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
         val.expense,
         val.income - val.expense
       ]).sort((a, b) => {
-        const [d1, m1, y1] = a[0].split("/").map(Number);
-        const [d2, m2, y2] = b[0].split("/").map(Number);
+        const [d1, m1, y1] = String(a[0]).split("/").map(Number);
+        const [d2, m2, y2] = String(b[0]).split("/").map(Number);
         return new Date(y1, m1 - 1, d1).getTime() - new Date(y2, m2 - 1, d2).getTime();
       });
 

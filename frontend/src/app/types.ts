@@ -21,7 +21,7 @@ export type PurchaseCategory =
   | "Dry Fruits"
   | "Cleaning Utility"
   | "Essence";
-export type PurchaseUnit = "kg" | "gram" | "liter" | "packet" | "packets" | "box" | "boxes" | "pcs" | "dozen";
+export type PurchaseUnit = "kg" | "gram" | "liter" | "liters" | "packet" | "packets" | "box" | "boxes" | "pcs" | "dozen";
 export type StockStatus = "none" | "in-stock" | "wanted";
 export type InventoryLevel = "ok" | "low" | "out";
 

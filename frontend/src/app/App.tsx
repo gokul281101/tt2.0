@@ -45,6 +45,7 @@ import type {
   AttendanceRecord,
   SalaryPayment,
   PurchaseCategory,
+  PurchaseUnit,
 } from "./types";
 import { SHOPS, PURCHASE_ITEMS } from "./constants";
 import { stockStatus } from "./components/StockView";
@@ -133,6 +134,8 @@ export default function App() {
   const [quickExpPayment, setQuickExpPayment] = useState<PaymentMethod>("cash");
   const [quickExpAmount, setQuickExpAmount] = useState("");
   const [quickExpDesc, setQuickExpDesc] = useState("");
+  const [quickExpQty, setQuickExpQty] = useState("");
+  const [quickExpUnit, setQuickExpUnit] = useState<PurchaseUnit>("pcs");
   const [quickExpDate, setQuickExpDate] = useState(new Date().toISOString().split("T")[0]);
 
   const shop = SHOPS[activeShop];
@@ -664,21 +667,40 @@ export default function App() {
     e.preventDefault();
     if (!quickExpAmount) return;
 
+    const isInventoryCategory = !!PURCHASE_ITEMS[quickExpCategory as PurchaseCategory];
+    const amountVal = Math.abs(parseFloat(quickExpAmount));
+
     const transaction: Transaction = {
       id: Date.now().toString(),
       type: "expense",
       paymentMethod: quickExpPayment,
-      amount: Math.abs(parseFloat(quickExpAmount)),
+      amount: amountVal,
       category: quickExpCategory || "Miscellaneous",
-      description: quickExpDesc || "Shop Expense",
+      description: isInventoryCategory && quickExpDesc 
+        ? `Purchase: ${quickExpDesc} (${quickExpQty || 1} ${quickExpUnit})` 
+        : quickExpDesc || "Shop Expense",
       date: new Date(quickExpDate),
     };
 
-    await addTransaction(transaction, activeShop);
+    let purchasePayloads = undefined;
+    if (isInventoryCategory && quickExpDesc) {
+      purchasePayloads = [{
+        itemName: quickExpDesc,
+        category: quickExpCategory,
+        quantity: parseFloat(quickExpQty) || 1,
+        unit: quickExpUnit,
+        price: amountVal,
+        date: new Date(quickExpDate),
+      }];
+    }
+
+    await addTransaction(transaction, activeShop, purchasePayloads);
 
     setQuickExpAmount("");
     setQuickExpCategory("");
     setQuickExpDesc("");
+    setQuickExpQty("");
+    setQuickExpUnit("pcs");
     setQuickExpDate(new Date().toISOString().split("T")[0]);
     setShowQuickExpense(false);
   }
@@ -1523,24 +1545,60 @@ export default function App() {
 
               {/* Item Selection (Shown only for Inventory Categories) */}
               {quickExpCategory && PURCHASE_ITEMS[quickExpCategory as PurchaseCategory] && (
-                <div>
-                  <label className="text-xs font-bold text-muted-foreground mb-1 block">Item</label>
-                  <select
-                    value={PURCHASE_ITEMS[quickExpCategory as PurchaseCategory].some(i => i.name === quickExpDesc) ? quickExpDesc : ""}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setQuickExpDesc(e.target.value);
-                      }
-                    }}
-                    className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">Select item...</option>
-                    {PURCHASE_ITEMS[quickExpCategory as PurchaseCategory].map((item) => (
-                      <option key={item.name} value={item.name}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-muted-foreground mb-1 block">Item</label>
+                    <select
+                      value={PURCHASE_ITEMS[quickExpCategory as PurchaseCategory].some(i => i.name === quickExpDesc) ? quickExpDesc : ""}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setQuickExpDesc(e.target.value);
+                          // Set the default unit for this item
+                          const matched = PURCHASE_ITEMS[quickExpCategory as PurchaseCategory]?.find(i => i.name === e.target.value);
+                          if (matched) {
+                            setQuickExpUnit(matched.unit);
+                          }
+                        }
+                      }}
+                      className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="">Select item...</option>
+                      {PURCHASE_ITEMS[quickExpCategory as PurchaseCategory].map((item) => (
+                        <option key={item.name} value={item.name}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Quantity and Unit Selection */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-muted-foreground mb-1 block">Quantity</label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 5"
+                        required
+                        value={quickExpQty}
+                        onChange={(e) => setQuickExpQty(e.target.value)}
+                        className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-muted-foreground mb-1 block">Unit</label>
+                      <select
+                        value={quickExpUnit}
+                        onChange={(e) => setQuickExpUnit(e.target.value as PurchaseUnit)}
+                        className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        {(["kg", "pcs", "packets", "liters", "dozen", "boxes"] as PurchaseUnit[]).map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
 

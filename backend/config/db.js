@@ -1,4 +1,12 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
+
+// Set public DNS servers to resolve MongoDB SRV/Atlas connection issues on IPv6/local DNS
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (e) {
+  console.warn('Warning: Could not set custom DNS servers:', e.message);
+}
 
 const connectDB = async () => {
   try {
