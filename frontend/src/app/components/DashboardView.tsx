@@ -10,6 +10,7 @@ import {
   Store,
   Flame,
   Trash2,
+  HeartHandshake,
 } from "lucide-react";
 import {
   BarChart,
@@ -48,6 +49,7 @@ interface DashboardViewProps {
   onDelete: (id: string, type: any, targetShop: ShopId) => void;
   onAddIncome: () => void;
   onAddExpense: () => void;
+  onAddPersonal: () => void;
 }
 
 export function DashboardView({
@@ -62,6 +64,7 @@ export function DashboardView({
   onDelete,
   onAddIncome,
   onAddExpense,
+  onAddPersonal,
 }: DashboardViewProps) {
   // Combine all transactions with shop annotations
   const allTxns = useMemo(() => {
@@ -171,10 +174,91 @@ export function DashboardView({
     // Net Profit = Overall Sales − (Expenses + Commitments)
     const netProfit = totalSalesIncome - (expensesTotal + totalCommitments);
 
+    // Yesterday closing balances calculation (dates strictly before today)
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    let yestCashIncome = 0;
+    let yestGpayIncome = 0;
+    let yestZomatoIncome = 0;
+    let yestCashExpense = 0;
+    let yestGpayExpense = 0;
+    let yestZomatoExpense = 0;
+
+    allTxns.forEach((t) => {
+      if (new Date(t.date) < todayStart) {
+        if (t.type === "income") {
+          if (t.paymentMethod === "cash") yestCashIncome += t.amount;
+          else if (t.paymentMethod === "gpay") yestGpayIncome += t.amount;
+          else if (t.paymentMethod === "zomato") yestZomatoIncome += t.amount;
+        } else {
+          if (t.paymentMethod === "cash") yestCashExpense += t.amount;
+          else if (t.paymentMethod === "gpay") yestGpayExpense += t.amount;
+          else if (t.paymentMethod === "zomato") yestZomatoExpense += t.amount;
+        }
+      }
+    });
+
+    let yestCashCommitments = 0;
+    let yestGpayCommitments = 0;
+    let yestZomatoCommitments = 0;
+    commitmentPayments.forEach((p) => {
+      if (new Date(p.paidDate) < todayStart) {
+        if (p.paymentMethod === "cash") yestCashCommitments += p.paidAmount;
+        else if (p.paymentMethod === "gpay") yestGpayCommitments += p.paidAmount;
+        else if (p.paymentMethod === "zomato") yestZomatoCommitments += p.paidAmount;
+      }
+    });
+
+    let yestCashPersonal = 0;
+    let yestGpayPersonal = 0;
+    let yestZomatoPersonal = 0;
+    personalExpenses.forEach((p) => {
+      if (new Date(p.date) < todayStart) {
+        const pm = p.paymentMethod || "cash";
+        if (pm === "cash") yestCashPersonal += p.amount;
+        else if (pm === "gpay") yestGpayPersonal += p.amount;
+        else if (pm === "zomato") yestZomatoPersonal += p.amount;
+      }
+    });
+
+    let yestCashDebt = 0;
+    let yestGpayDebt = 0;
+    let yestZomatoDebt = 0;
+    debts.forEach((d) => {
+      (d.payments || []).forEach((p) => {
+        if (new Date(p.date) < todayStart) {
+          const pm = p.paymentMethod || "cash";
+          if (pm === "cash") yestCashDebt += p.amount;
+          else if (pm === "gpay") yestGpayDebt += p.amount;
+          else if (pm === "zomato") yestZomatoDebt += p.amount;
+        }
+      });
+    });
+
+    let yestCashSalary = 0;
+    let yestGpaySalary = 0;
+    let yestZomatoSalary = 0;
+    salaryPayments.forEach((p) => {
+      if (new Date(p.paidDate) < todayStart) {
+        const pm = p.paymentMethod || "cash";
+        if (pm === "cash") yestCashSalary += p.amount;
+        else if (pm === "gpay") yestGpaySalary += p.amount;
+        else if (pm === "zomato") yestZomatoSalary += p.amount;
+      }
+    });
+
+    const yesterdayCash = yestCashIncome - yestCashExpense - yestCashCommitments - yestCashPersonal - yestCashDebt - yestCashSalary;
+    const yesterdayGpay = yestGpayIncome - yestGpayExpense - yestGpayCommitments - yestGpayPersonal - yestGpayDebt - yestGpaySalary;
+    const yesterdayZomato = yestZomatoIncome - yestZomatoExpense - yestZomatoCommitments - yestZomatoPersonal - yestZomatoDebt - yestZomatoSalary;
+
     return {
       cash,
       gpay,
       zomato,
+      yesterdayCash,
+      yesterdayGpay,
+      yesterdayZomato,
       expenses: expensesTotal,
       balance,
       netProfit,
@@ -216,48 +300,43 @@ export function DashboardView({
 
   return (
     <div className="space-y-6">
-      {/* Upper Section banner */}
-      <div className="bg-gradient-to-r from-emerald-800 to-emerald-950 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
-        <div className="absolute right-0 bottom-0 opacity-10 translate-x-12 translate-y-12">
-          <Layers size={220} />
-        </div>
-        
-        {/* Banner main content row */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="max-w-xl space-y-2">
-            <span className="bg-emerald-600/40 text-emerald-300 text-[10px] font-extrabold tracking-widest uppercase px-3 py-1 rounded-full border border-emerald-500/20">
-              Unified Executive Dashboard
-            </span>
-            <h2 className="text-2xl font-bold tracking-tight">Trending Thamila Combined Analytics</h2>
-            <p className="text-emerald-200/80 text-xs">
-              Reviewing combined results, revenue streams, and expense reports across both **Theppakulam** and **Anuppanadi** shop branches.
-            </p>
-          </div>
-
-          {/* Quick Action buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center flex-shrink-0">
+      {/* Upper Section Header (No green box) */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-5 border-b border-border">
+        <div className="max-w-xl space-y-1.5">
+          <span className="bg-primary/10 text-primary text-[10px] font-extrabold tracking-widest uppercase px-3 py-1 rounded-full border border-primary/20">
+            Unified Executive Dashboard
+          </span>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Trending Thamila Combined Analytics</h2>
+          <p className="text-muted-foreground text-xs">
+            Reviewing combined results, revenue streams, and expense reports across both <strong>Theppakulam</strong> and <strong>Anuppanadi</strong> shop branches.
             <button
-              onClick={onAddIncome}
-              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-[0.97] shadow-lg shadow-emerald-900/40 border border-emerald-500/20 transition-all duration-200 cursor-pointer"
+              onClick={() => onNavigateTo("reports")}
+              className="inline-flex items-center gap-0.5 text-xs font-extrabold text-emerald-800 dark:text-emerald-500 hover:underline transition-colors ml-1.5 cursor-pointer"
             >
-              📈 Add Shop Income
+              Detailed Reports <ArrowRight size={12} />
             </button>
-            <button
-              onClick={onAddExpense}
-              className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-extrabold text-white bg-amber-600 hover:bg-amber-500 active:scale-[0.97] shadow-lg shadow-amber-900/40 border border-amber-500/20 transition-all duration-200 cursor-pointer"
-            >
-              📉 Add Shop Expense
-            </button>
-          </div>
+          </p>
         </div>
 
-        {/* Detailed Reports link display */}
-        <div className="mt-6 pt-5 border-t border-white/10 flex justify-end relative z-10">
+        {/* Quick Action buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center flex-shrink-0">
           <button
-            onClick={() => onNavigateTo("reports")}
-            className="flex items-center gap-1 text-xs font-bold text-emerald-300 hover:text-white transition-colors"
+            onClick={onAddIncome}
+            className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs font-extrabold text-white bg-emerald-700 hover:bg-emerald-600 active:scale-[0.97] shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer"
           >
-            Detailed Reports <ArrowRight size={13} />
+            📈 Add Shop Income
+          </button>
+          <button
+            onClick={onAddExpense}
+            className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs font-extrabold text-white bg-amber-700 hover:bg-amber-600 active:scale-[0.97] shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer"
+          >
+            📉 Add Shop Expense
+          </button>
+          <button
+            onClick={onAddPersonal}
+            className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs font-extrabold text-white bg-purple-700 hover:bg-purple-600 active:scale-[0.97] shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer"
+          >
+            💜 Add Quick Personal
           </button>
         </div>
       </div>
@@ -269,8 +348,13 @@ export function DashboardView({
         <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Cash</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
-              <Banknote size={15} />
+            <div className="flex flex-col items-end">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                <Banknote size={15} />
+              </div>
+              <span className="text-[9px] font-bold mt-1 text-muted-foreground whitespace-nowrap">
+                Yest: {fmt(stats.yesterdayCash)}
+              </span>
             </div>
           </div>
           <div>
@@ -285,8 +369,13 @@ export function DashboardView({
         <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total GPay</span>
-            <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
-              <Smartphone size={15} />
+            <div className="flex flex-col items-end">
+              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
+                <Smartphone size={15} />
+              </div>
+              <span className="text-[9px] font-bold mt-1 text-muted-foreground whitespace-nowrap">
+                Yest: {fmt(stats.yesterdayGpay)}
+              </span>
             </div>
           </div>
           <div>
@@ -301,8 +390,13 @@ export function DashboardView({
         <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Zomato</span>
-            <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
-              <Flame size={15} />
+            <div className="flex flex-col items-end">
+              <div className="w-8 h-8 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+                <Flame size={15} />
+              </div>
+              <span className="text-[9px] font-bold mt-1 text-muted-foreground whitespace-nowrap">
+                Yest: {fmt(stats.yesterdayZomato)}
+              </span>
             </div>
           </div>
           <div>

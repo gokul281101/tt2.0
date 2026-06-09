@@ -17,7 +17,7 @@ import {
   Area,
 } from "recharts";
 import { ChartColumnDecreasing, Store, Landmark, Percent, Layers, ShieldCheck, Users, FileText, Download } from "lucide-react";
-import type { Transaction, Purchase, Debt, ShopId } from "../types";
+import type { Transaction, Purchase, Debt, ShopId, PersonalExpense } from "../types";
 import { SHOPS } from "../constants";
 import { fmt, fmtShort } from "../utils";
 import { jsPDF } from "jspdf";
@@ -28,9 +28,10 @@ interface ReportsViewProps {
   purchases: Record<ShopId, Purchase[]>;
   debts: Debt[];
   salaryReport: { staffName: string; calculatedSalary: number }[];
+  personalExpenses: PersonalExpense[];
 }
 
-export function ReportsView({ transactions, purchases, debts, salaryReport }: ReportsViewProps) {
+export function ReportsView({ transactions, purchases, debts, salaryReport, personalExpenses }: ReportsViewProps) {
   const [period, setPeriod] = useState<"30d" | "90d" | "all">("30d");
 
   // PDF report states
@@ -38,7 +39,7 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
     new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
   );
   const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
-  const [reportType, setReportType] = useState<"sales" | "expenses" | "purchases" | "debts" | "attendance" | "summary">("summary");
+  const [reportType, setReportType] = useState<"sales" | "expenses" | "purchases" | "debts" | "attendance" | "summary" | "personal">("summary");
 
   const handleDownloadPDF = () => {
     const doc = new jsPDF() as any;
@@ -204,12 +205,38 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
         theme: "striped",
         headStyles: { fillColor: [99, 102, 241] }
       });
+    } else if (reportType === "personal") {
+      const filtered = personalExpenses.filter(p => new Date(p.date) >= start && new Date(p.date) <= end);
+      const totalPersonal = filtered.reduce((sum, p) => sum + p.amount, 0);
+
+      doc.setFontSize(12);
+      doc.setTextColor(50, 50, 50);
+      doc.text(`Total Personal Expenses: INR ${totalPersonal.toLocaleString("en-IN")}`, 14, currentY);
+      currentY += 8;
+
+      const tableBody = filtered.map(p => [
+        new Date(p.date).toLocaleDateString("en-IN"),
+        p.category,
+        p.description || "N/A",
+        p.paymentMethod.toUpperCase(),
+        p.amount
+      ]);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Date", "Category", "Description", "Payment Method", "Amount (INR)"]],
+        body: tableBody,
+        theme: "striped",
+        headStyles: { fillColor: [109, 40, 217] }
+      });
     } else {
       // Overall Summary
       const sales = allTxns.filter(t => t.type === "income" && new Date(t.date) >= start && new Date(t.date) <= end);
       const expenses = allTxns.filter(t => t.type === "expense" && new Date(t.date) >= start && new Date(t.date) <= end);
+      const personal = personalExpenses.filter(p => new Date(p.date) >= start && new Date(p.date) <= end);
       const totalSales = sales.reduce((sum, t) => sum + t.amount, 0);
       const totalExpenses = expenses.reduce((sum, t) => sum + t.amount, 0);
+      const totalPersonal = personal.reduce((sum, p) => sum + p.amount, 0);
 
       doc.setFontSize(12);
       doc.setTextColor(50, 50, 50);
@@ -217,7 +244,11 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
       currentY += 6;
       doc.text(`Total Expenses: INR ${totalExpenses.toLocaleString("en-IN")}`, 14, currentY);
       currentY += 6;
+      doc.text(`Total Personal Expenses: INR ${totalPersonal.toLocaleString("en-IN")}`, 14, currentY);
+      currentY += 6;
       doc.text(`Net Balance / Profit: INR ${(totalSales - totalExpenses).toLocaleString("en-IN")}`, 14, currentY);
+      currentY += 6;
+      doc.text(`Net Balance after Personal: INR ${(totalSales - totalExpenses - totalPersonal).toLocaleString("en-IN")}`, 14, currentY);
       currentY += 10;
 
       // Highlights of highly spent expenses
@@ -492,6 +523,7 @@ export function ReportsView({ transactions, purchases, debts, salaryReport }: Re
               <option value="purchases">Purchase Report</option>
               <option value="debts">Debt Report</option>
               <option value="attendance">Attendance Report</option>
+              <option value="personal">Personal Expenses Report</option>
             </select>
           </div>
           <div>

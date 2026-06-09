@@ -121,6 +121,14 @@ export default function App() {
   const [showQuickEntry, setShowQuickEntry] = useState(false);
   const [showQuickIncome, setShowQuickIncome] = useState(false);
   const [showQuickExpense, setShowQuickExpense] = useState(false);
+  const [showQuickPersonal, setShowQuickPersonal] = useState(false);
+
+  // Quick Personal Form States
+  const [quickPersCategory, setQuickPersCategory] = useState<"Home" | "Personal Use">("Home");
+  const [quickPersPayment, setQuickPersPayment] = useState<PaymentMethod>("cash");
+  const [quickPersAmount, setQuickPersAmount] = useState("");
+  const [quickPersDesc, setQuickPersDesc] = useState("");
+  const [quickPersDate, setQuickPersDate] = useState(new Date().toISOString().split("T")[0]);
 
   // Quick Income Form States
   const [quickIncShop, setQuickIncShop] = useState<ShopId>("shop1");
@@ -137,6 +145,7 @@ export default function App() {
   const [quickExpQty, setQuickExpQty] = useState("");
   const [quickExpUnit, setQuickExpUnit] = useState<PurchaseUnit>("pcs");
   const [quickExpDate, setQuickExpDate] = useState(new Date().toISOString().split("T")[0]);
+  const [quickExpCustomItem, setQuickExpCustomItem] = useState(false);
 
   const shop = SHOPS[activeShop];
 
@@ -670,25 +679,29 @@ export default function App() {
     const isInventoryCategory = !!PURCHASE_ITEMS[quickExpCategory as PurchaseCategory];
     const amountVal = Math.abs(parseFloat(quickExpAmount));
 
+    const finalItemName = isInventoryCategory 
+      ? (quickExpDesc.trim() || quickExpCategory) 
+      : (quickExpDesc.trim() || "Shop Expense");
+
     const transaction: Transaction = {
       id: Date.now().toString(),
       type: "expense",
       paymentMethod: quickExpPayment,
       amount: amountVal,
       category: quickExpCategory || "Miscellaneous",
-      description: isInventoryCategory && quickExpDesc 
-        ? `Purchase: ${quickExpDesc} (${quickExpQty || 1} ${quickExpUnit})` 
-        : quickExpDesc || "Shop Expense",
+      description: isInventoryCategory 
+        ? `Purchase: ${finalItemName} (${quickExpQty || 1} ${quickExpUnit})` 
+        : finalItemName,
       date: new Date(quickExpDate),
     };
 
     let purchasePayloads = undefined;
-    if (isInventoryCategory && quickExpDesc) {
+    if (isInventoryCategory) {
       purchasePayloads = [{
-        itemName: quickExpDesc,
-        category: quickExpCategory,
+        itemName: finalItemName,
+        category: quickExpCategory as PurchaseCategory,
         quantity: parseFloat(quickExpQty) || 1,
-        unit: quickExpUnit,
+        unit: quickExpUnit || "pcs",
         price: amountVal,
         date: new Date(quickExpDate),
       }];
@@ -702,7 +715,28 @@ export default function App() {
     setQuickExpQty("");
     setQuickExpUnit("pcs");
     setQuickExpDate(new Date().toISOString().split("T")[0]);
+    setQuickExpCustomItem(false);
     setShowQuickExpense(false);
+  }
+
+  async function handleQuickPersonalSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!quickPersAmount || !quickPersDesc) return;
+
+    await handleAddPersonal({
+      amount: Math.abs(parseFloat(quickPersAmount)),
+      category: quickPersCategory,
+      description: quickPersDesc,
+      date: new Date(quickPersDate),
+      paymentMethod: quickPersPayment,
+    });
+
+    setQuickPersAmount("");
+    setQuickPersDesc("");
+    setQuickPersCategory("Home");
+    setQuickPersPayment("cash");
+    setQuickPersDate(new Date().toISOString().split("T")[0]);
+    setShowQuickPersonal(false);
   }
 
   // Seeding/Reset DB API callbacks
@@ -1238,6 +1272,7 @@ export default function App() {
             onDelete={deleteTransaction}
             onAddIncome={() => setShowQuickIncome(true)}
             onAddExpense={() => setShowQuickExpense(true)}
+            onAddPersonal={() => setShowQuickPersonal(true)}
           />
         )}
         {mainView === "sales" && (
@@ -1306,6 +1341,7 @@ export default function App() {
             purchases={shopPurchases}
             debts={debts}
             salaryReport={salaryReportList}
+            personalExpenses={personalExpenses}
           />
         )}
         {mainView === "settings" && (
@@ -1346,6 +1382,15 @@ export default function App() {
                 className="bg-amber-700 hover:bg-amber-800 text-white rounded-full px-5 py-2.5 text-xs font-extrabold shadow-xl border border-amber-600/35 hover:scale-105 transition-all duration-200 flex items-center gap-2 cursor-pointer"
               >
                 💸 Quick Expense Entry
+              </button>
+              <button
+                onClick={() => {
+                  setShowQuickPersonal(true);
+                  setShowQuickEntry(false);
+                }}
+                className="bg-purple-700 hover:bg-purple-800 text-white rounded-full px-5 py-2.5 text-xs font-extrabold shadow-xl border border-purple-600/35 hover:scale-105 transition-all duration-200 flex items-center gap-2 cursor-pointer"
+              >
+                💜 Quick Personal Entry
               </button>
             </div>
           )}
@@ -1547,28 +1592,52 @@ export default function App() {
               {quickExpCategory && PURCHASE_ITEMS[quickExpCategory as PurchaseCategory] && (
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs font-bold text-muted-foreground mb-1 block">Item</label>
-                    <select
-                      value={PURCHASE_ITEMS[quickExpCategory as PurchaseCategory].some(i => i.name === quickExpDesc) ? quickExpDesc : ""}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          setQuickExpDesc(e.target.value);
-                          // Set the default unit for this item
-                          const matched = PURCHASE_ITEMS[quickExpCategory as PurchaseCategory]?.find(i => i.name === e.target.value);
-                          if (matched) {
-                            setQuickExpUnit(matched.unit);
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-muted-foreground">Item</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickExpCustomItem(!quickExpCustomItem);
+                          setQuickExpDesc("");
+                        }}
+                        className="text-xs text-primary font-medium hover:underline cursor-pointer"
+                      >
+                        {quickExpCustomItem ? "Pick from list" : "+ Custom item"}
+                      </button>
+                    </div>
+                    {quickExpCustomItem ? (
+                      <input
+                        type="text"
+                        placeholder="e.g. Essence Bulk"
+                        value={quickExpDesc}
+                        onChange={(e) => setQuickExpDesc(e.target.value)}
+                        className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    ) : (
+                      <select
+                        value={PURCHASE_ITEMS[quickExpCategory as PurchaseCategory].some(i => i.name === quickExpDesc) ? quickExpDesc : ""}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setQuickExpDesc(e.target.value);
+                            // Set the default unit for this item
+                            const matched = PURCHASE_ITEMS[quickExpCategory as PurchaseCategory]?.find(i => i.name === e.target.value);
+                            if (matched) {
+                              setQuickExpUnit(matched.unit);
+                            }
+                          } else {
+                            setQuickExpDesc("");
                           }
-                        }
-                      }}
-                      className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
-                    >
-                      <option value="">Select item...</option>
-                      {PURCHASE_ITEMS[quickExpCategory as PurchaseCategory].map((item) => (
-                        <option key={item.name} value={item.name}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
+                        }}
+                        className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <option value="">Select item (Optional, defaults to category)...</option>
+                        {PURCHASE_ITEMS[quickExpCategory as PurchaseCategory].map((item) => (
+                          <option key={item.name} value={item.name}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   {/* Quantity and Unit Selection */}
@@ -1578,7 +1647,6 @@ export default function App() {
                       <input
                         type="number"
                         placeholder="e.g. 5"
-                        required
                         value={quickExpQty}
                         onChange={(e) => setQuickExpQty(e.target.value)}
                         className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
@@ -1681,6 +1749,119 @@ export default function App() {
                 className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-amber-700 hover:opacity-90 disabled:opacity-40 transition-all shadow-md"
               >
                 Save Expense
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Personal Entry Modal */}
+      {showQuickPersonal && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div>
+                <h3 className="text-base font-bold text-foreground">Quick Personal Entry</h3>
+                <p className="text-xs text-muted-foreground">Log home or personal expenses</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickPersonal(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleQuickPersonalSubmit} className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Category</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQuickPersCategory("Home")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold border ${
+                      quickPersCategory === "Home"
+                        ? "bg-blue-50 text-blue-700 border-blue-300"
+                        : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
+                    }`}
+                  >
+                    Home & Family
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickPersCategory("Personal Use")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold border ${
+                      quickPersCategory === "Personal Use"
+                        ? "bg-purple-50 text-purple-700 border-purple-300"
+                        : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
+                    }`}
+                  >
+                    Personal Use
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Payment Method</label>
+                <div className="flex gap-2">
+                  {(["cash", "gpay", "zomato"] as const).map((method) => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => setQuickPersPayment(method)}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all uppercase tracking-wider ${
+                        quickPersPayment === method
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                          : "bg-muted text-muted-foreground border-transparent hover:text-foreground"
+                      }`}
+                    >
+                      {method}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Amount (₹)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  required
+                  value={quickPersAmount}
+                  onChange={(e) => setQuickPersAmount(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs font-[DM_Mono,monospace] border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Description</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Household grocery"
+                  required
+                  value={quickPersDesc}
+                  onChange={(e) => setQuickPersDesc(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-muted-foreground mb-1 block">Date</label>
+                <input
+                  type="date"
+                  required
+                  value={quickPersDate}
+                  onChange={(e) => setQuickPersDate(e.target.value)}
+                  className="w-full bg-input-background rounded-xl px-4 py-2.5 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={!quickPersAmount || !quickPersDesc}
+                className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-purple-700 hover:opacity-90 disabled:opacity-40 transition-all shadow-md cursor-pointer"
+              >
+                Save Record
               </button>
             </form>
           </div>
