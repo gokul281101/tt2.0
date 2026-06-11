@@ -60,10 +60,21 @@ export function AttendanceView({
     }
   }, [selectedPayStaff]);
 
-  const [activeDate, setActiveDate] = useState(new Date().toISOString().split("T")[0]);
+  const getLocalDateString = (d = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const [activeDate, setActiveDate] = useState(getLocalDateString());
   const [activeMonth, setActiveMonth] = useState(
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
   );
+
+  // Calendar Detail Modal states
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [selectedCalendarStaff, setSelectedCalendarStaff] = useState<Staff | null>(null);
+  const [selectedCalendarTab, setSelectedCalendarTab] = useState<"present" | "half-day" | "absent" | "all">("all");
 
   const [salaryReport, setSalaryReport] = useState<
     { staff: Staff; presentDays: number; halfDays: number; absentDays: number; calculatedSalary: number }[]
@@ -89,14 +100,10 @@ export function AttendanceView({
       map[s.id] = "none";
     });
 
-    const targetDate = new Date(activeDate);
-    targetDate.setHours(0, 0, 0, 0);
-
     attendanceRecords.forEach((r) => {
-      const rDate = new Date(r.date);
-      rDate.setHours(0, 0, 0, 0);
-
-      if (rDate.getTime() === targetDate.getTime()) {
+      if (!r.date) return;
+      const recordDateStr = new Date(r.date).toISOString().split("T")[0];
+      if (recordDateStr === activeDate) {
         map[r.staffId] = r.status;
       }
     });
@@ -323,9 +330,42 @@ export function AttendanceView({
                           ₹{r.staff.dailyWage}
                         </button>
                       </td>
-                      <td className="py-3.5 text-center text-green-700 font-bold">{r.presentDays}</td>
-                      <td className="py-3.5 text-center text-amber-600 font-bold">{r.halfDays || 0}</td>
-                      <td className="py-3.5 text-center text-red-600 font-bold">{r.absentDays}</td>
+                      <td className="py-3.5 text-center">
+                        <button
+                          onClick={() => {
+                            setSelectedCalendarStaff(r.staff);
+                            setSelectedCalendarTab("present");
+                            setShowCalendarModal(true);
+                          }}
+                          className="text-green-700 font-bold hover:underline bg-transparent border-0 cursor-pointer"
+                        >
+                          {r.presentDays}
+                        </button>
+                      </td>
+                      <td className="py-3.5 text-center">
+                        <button
+                          onClick={() => {
+                            setSelectedCalendarStaff(r.staff);
+                            setSelectedCalendarTab("half-day");
+                            setShowCalendarModal(true);
+                          }}
+                          className="text-amber-600 font-bold hover:underline bg-transparent border-0 cursor-pointer"
+                        >
+                          {r.halfDays || 0}
+                        </button>
+                      </td>
+                      <td className="py-3.5 text-center">
+                        <button
+                          onClick={() => {
+                            setSelectedCalendarStaff(r.staff);
+                            setSelectedCalendarTab("absent");
+                            setShowCalendarModal(true);
+                          }}
+                          className="text-red-600 font-bold hover:underline bg-transparent border-0 cursor-pointer"
+                        >
+                          {r.absentDays}
+                        </button>
+                      </td>
                       <td className="py-3.5 text-right font-black text-emerald-800 font-[DM_Mono]">
                         {fmt(r.calculatedSalary)}
                       </td>
@@ -771,6 +811,197 @@ export function AttendanceView({
                   Apply Wage Rate Adjustment
                 </button>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Premium Attendance Calendar Modal */}
+      {showCalendarModal && selectedCalendarStaff && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-lg overflow-hidden animate-slide-up">
+            <div className="flex items-center justify-between p-5 border-b border-border bg-gradient-to-r from-emerald-800 to-teal-900 text-white">
+              <div>
+                <h3 className="text-base font-bold">{selectedCalendarStaff.name}'s Attendance</h3>
+                <p className="text-xs text-emerald-100/80">Monthly statement for {activeMonth}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCalendarModal(false);
+                  setSelectedCalendarStaff(null);
+                }}
+                className="text-white/80 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Tab Selector / Pills */}
+              <div className="flex gap-1.5 p-1 bg-muted rounded-xl text-xs">
+                {(["all", "present", "half-day", "absent"] as const).map((tab) => {
+                  const label = tab === "all" ? "Full Month" : tab === "present" ? "Present" : tab === "half-day" ? "Half Day" : "Absent";
+                  const colorClass = tab === "present" 
+                    ? "text-green-700 bg-green-50 border-green-200" 
+                    : tab === "half-day" 
+                    ? "text-amber-700 bg-amber-50 border-amber-200" 
+                    : tab === "absent" 
+                    ? "text-red-700 bg-red-50 border-red-200" 
+                    : "text-muted-foreground";
+
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setSelectedCalendarTab(tab)}
+                      className={`flex-1 py-1.5 rounded-lg font-bold border transition-all capitalize cursor-pointer ${
+                        selectedCalendarTab === tab
+                          ? tab === "all"
+                            ? "bg-card text-foreground border-border shadow-sm"
+                            : `${colorClass} shadow-sm font-extrabold`
+                          : "border-transparent text-muted-foreground hover:bg-muted-foreground/10"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Renders Calendar Grid */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-7 text-center text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  <span>Sun</span>
+                  <span>Mon</span>
+                  <span>Tue</span>
+                  <span>Wed</span>
+                  <span>Thu</span>
+                  <span>Fri</span>
+                  <span>Sat</span>
+                </div>
+
+                <div className="grid grid-cols-7 gap-2">
+                  {(() => {
+                    const [year, month] = activeMonth.split("-").map(Number);
+                    const daysInMonth = new Date(year, month, 0).getDate();
+                    const firstDayIndex = new Date(year, month - 1, 1).getDay();
+
+                    const cells = [];
+                    // Pad empty days
+                    for (let i = 0; i < firstDayIndex; i++) {
+                      cells.push(<div key={`empty-${i}`} className="aspect-square" />);
+                    }
+
+                    // Days of the month
+                    for (let d = 1; d <= daysInMonth; d++) {
+                      const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                      
+                      const record = attendanceRecords.find(
+                        (r) =>
+                          r.staffId === selectedCalendarStaff.id &&
+                          new Date(r.date).toISOString().split("T")[0] === dateStr
+                      );
+                      
+                      const status = record ? record.status : "none";
+                      
+                      let bgClass = "bg-muted/30 border-transparent text-muted-foreground/50";
+                      let borderClass = "border border-transparent";
+                      let indicatorDot = null;
+
+                      if (status === "present") {
+                        bgClass = "bg-green-50 text-green-800 font-extrabold";
+                        borderClass = "border border-green-300";
+                        indicatorDot = <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-green-600" />;
+                      } else if (status === "half-day") {
+                        bgClass = "bg-amber-50 text-amber-800 font-extrabold";
+                        borderClass = "border border-amber-300";
+                        indicatorDot = <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-amber-500" />;
+                      } else if (status === "absent") {
+                        bgClass = "bg-red-50 text-red-800 font-extrabold";
+                        borderClass = "border border-red-300";
+                        indicatorDot = <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-red-500" />;
+                      }
+
+                      // Apply dim filter if a specific tab is selected and doesn't match
+                      const isDimmed = selectedCalendarTab !== "all" && selectedCalendarTab !== status;
+                      
+                      cells.push(
+                        <div
+                          key={`day-${d}`}
+                          className={`relative aspect-square rounded-xl flex flex-col items-center justify-center text-xs transition-all ${bgClass} ${borderClass} ${
+                            isDimmed ? "opacity-30 border-dashed animate-pulse" : "shadow-sm"
+                          }`}
+                          title={record ? `${d} - ${status}` : `${d} - No Record`}
+                        >
+                          <span className="font-bold text-[11px]">{d}</span>
+                          {indicatorDot}
+                        </div>
+                      );
+                    }
+                    return cells;
+                  })()}
+                </div>
+              </div>
+
+              {/* List of matching dates */}
+              <div className="space-y-2 max-h-40 overflow-y-auto border-t border-border pt-4">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide block">
+                  Attendance History Log
+                </label>
+                <div className="space-y-1.5">
+                  {(() => {
+                    const [year, month] = activeMonth.split("-").map(Number);
+                    const matchingRecords = attendanceRecords
+                      .filter((r) => {
+                        if (r.staffId !== selectedCalendarStaff.id) return false;
+                        const rDate = new Date(r.date);
+                        const rYear = rDate.getFullYear();
+                        const rMonth = rDate.getMonth() + 1;
+                        if (rYear !== year || rMonth !== month) return false;
+                        if (selectedCalendarTab !== "all" && r.status !== selectedCalendarTab) return false;
+                        return true;
+                      })
+                      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                    if (matchingRecords.length === 0) {
+                      return (
+                        <p className="text-center py-4 text-xs italic text-muted-foreground">
+                          No logs found for this filter.
+                        </p>
+                      );
+                    }
+
+                    return matchingRecords.map((r) => {
+                      const dateObj = new Date(r.date);
+                      const formattedDate = dateObj.toLocaleDateString("en-IN", {
+                        weekday: "short",
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
+                        timeZone: "UTC"
+                      });
+
+                      const statusLabels = {
+                        present: { text: "Present", color: "bg-green-100 text-green-800 border-green-200" },
+                        "half-day": { text: "Half Day", color: "bg-amber-100 text-amber-800 border-amber-200" },
+                        absent: { text: "Absent", color: "bg-red-100 text-red-800 border-red-200" },
+                      };
+
+                      const label = statusLabels[r.status] || { text: r.status, color: "bg-muted text-muted-foreground" };
+
+                      return (
+                        <div key={r.id} className="flex justify-between items-center text-xs p-2 rounded-lg bg-muted/30 border border-border/40">
+                          <span className="font-semibold text-foreground">{formattedDate}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${label.color}`}>
+                            {label.text}
+                          </span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
             </div>
           </div>
         </div>

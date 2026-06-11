@@ -623,7 +623,7 @@ export default function App() {
         const filtered = prev.filter(
           (r) =>
             r.staffId !== staffId ||
-            new Date(r.date).toDateString() !== new Date(date).toDateString()
+            new Date(r.date).toISOString().split("T")[0] !== date
         );
         return [record, ...filtered];
       });

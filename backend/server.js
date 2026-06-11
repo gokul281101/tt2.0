@@ -5,7 +5,14 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 
 dotenv.config();
-connectDB();
+connectDB().then(async () => {
+  try {
+    const { migrateAttendanceDates } = require('./controllers/attendanceController');
+    await migrateAttendanceDates();
+  } catch (err) {
+    console.error('Error running startup migration:', err);
+  }
+});
 
 const app = express();
 

@@ -15,9 +15,9 @@ function getDailyWageForDate(staff, date) {
 
   for (let entry of sortedHistory) {
     const effDate = new Date(entry.effectiveDate);
-    effDate.setHours(0, 0, 0, 0);
+    effDate.setUTCHours(0, 0, 0, 0);
     const targetDate = new Date(date);
-    targetDate.setHours(0, 0, 0, 0);
+    targetDate.setUTCHours(0, 0, 0, 0);
     if (effDate <= targetDate) {
       activeWage = entry.dailyWage;
     } else {
@@ -69,12 +69,18 @@ exports.updateStaff = async (req, res) => {
 
     if (dailyWage !== undefined && parseFloat(dailyWage) !== staff.dailyWage) {
       const wageVal = parseFloat(dailyWage);
-      const effDate = req.body.effectiveDate ? new Date(req.body.effectiveDate) : new Date();
-      effDate.setHours(0, 0, 0, 0);
+      let effDate;
+      if (req.body.effectiveDate) {
+        const [yr, mo, dy] = req.body.effectiveDate.split('-').map(Number);
+        effDate = new Date(Date.UTC(yr, mo - 1, dy));
+      } else {
+        effDate = new Date();
+        effDate.setUTCHours(0, 0, 0, 0);
+      }
 
       const existingIdx = staff.wageHistory.findIndex(entry => {
         const entryDate = new Date(entry.effectiveDate);
-        entryDate.setHours(0, 0, 0, 0);
+        entryDate.setUTCHours(0, 0, 0, 0);
         return entryDate.getTime() === effDate.getTime();
       });
 
@@ -126,11 +132,13 @@ exports.getAttendance = async (req, res) => {
     const filter = {};
     if (from || to) {
       filter.date = {};
-      if (from) filter.date.$gte = new Date(from);
+      if (from) {
+        const [yr, mo, dy] = from.split('-').map(Number);
+        filter.date.$gte = new Date(Date.UTC(yr, mo - 1, dy));
+      }
       if (to) {
-        const t = new Date(to);
-        t.setHours(23, 59, 59);
-        filter.date.$lte = t;
+        const [yr, mo, dy] = to.split('-').map(Number);
+        filter.date.$lte = new Date(Date.UTC(yr, mo - 1, dy, 23, 59, 59, 999));
       }
     }
     const data = await Attendance.find(filter).populate('staffId').sort({ date: -1 });
@@ -147,9 +155,9 @@ exports.saveAttendance = async (req, res) => {
       return res.status(400).json({ success: false, message: 'staffId, date, and status are required' });
     }
 
-    const attendanceDate = new Date(date);
-    // Reset date to midnight to make uniform day comparison
-    attendanceDate.setHours(0, 0, 0, 0);
+    // Parse as YYYY-MM-DD to avoid timezone shifting and store as UTC midnight
+    const [yr, mo, dy] = date.split('-').map(Number);
+    const attendanceDate = new Date(Date.UTC(yr, mo - 1, dy));
 
     // Upsert the attendance record
     const record = await Attendance.findOneAndUpdate(
@@ -172,8 +180,8 @@ exports.getSalaryReport = async (req, res) => {
     }
 
     const [year, month] = monthKey.split('-').map(Number);
-    const start = new Date(year, month - 1, 1);
-    const end = new Date(year, month, 1);
+    const start = new Date(Date.UTC(year, month - 1, 1));
+    const end = new Date(Date.UTC(year, month, 1));
 
     const staffList = await Staff.find({}).sort({ name: 1 });
     const report = [];
@@ -266,5 +274,50 @@ exports.deleteSalaryPayment = async (req, res) => {
     res.json({ success: true, message: 'Salary payment deleted successfully' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.migrateAttendanceDates = async () => {
+  try {
+    const Staff = require('../models/Staff');
+    const Attendance = require('../models/Attendance');
+    const records = await Attendance.find({});
+    console.log(`[Migration] Checking ${records.length} attendance records for timezone normalization...`);
+
+    let migratedCount = 0;
+    let deletedCount = 0;
+
+    for (let record of records) {
+      if (!record.date) continue;
+      const dateObj = new Date(record.date);
+      // Convert to Asia/Kolkata local date string YYYY-MM-DD
+      const localDateStr = dateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      
+      // Construct the canonical UTC midnight date
+      const [yr, mo, dy] = localDateStr.split('-').map(Number);
+      const canonicalDate = new Date(Date.UTC(yr, mo - 1, dy));
+
+      if (record.date.getTime() !== canonicalDate.getTime()) {
+        // Check if there is already a record for this staff and canonical date
+        const existing = await Attendance.findOne({
+          staffId: record.staffId,
+          date: canonicalDate
+        });
+
+        if (existing) {
+          console.log(`[Migration] Duplicate found for staff ${record.staffId} on ${localDateStr}. Deleting duplicate record.`);
+          await Attendance.deleteOne({ _id: record._id });
+          deletedCount++;
+        } else {
+          console.log(`[Migration] Migrating record ${record._id} from ${record.date.toISOString()} to ${canonicalDate.toISOString()}`);
+          record.date = canonicalDate;
+          await record.save();
+          migratedCount++;
+        }
+      }
+    }
+    console.log(`[Migration] Done. Migrated: ${migratedCount}, Deleted duplicates: ${deletedCount}`);
+  } catch (err) {
+    console.error('[Migration] Failed during database self-healing:', err);
   }
 };
