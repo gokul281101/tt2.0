@@ -280,7 +280,7 @@ export const api = {
   },
 
   // Commitments API
-  async getCommitments(shopId: ShopId, monthKey: string): Promise<{ commitments: Commitment[]; payments: CommitmentPayment[] }> {
+  async getCommitments(shopId: ShopId, monthKey: string): Promise<{ commitments: Commitment[]; payments: CommitmentPayment[]; allPayments: CommitmentPayment[] }> {
     const response = await fetch(`${BASE_URL}/commitments?monthKey=${monthKey}`, { headers: getHeaders(shopId) });
     const result = await response.json();
     if (!result.success) throw new Error(result.message || "Failed to load commitments");
@@ -295,7 +295,9 @@ export const api = {
       }
     });
 
-    return { commitments, payments };
+    const allPayments = (result.allPayments || []).map(mapCommitmentPaymentToFrontend);
+
+    return { commitments, payments, allPayments };
   },
 
   async addCommitment(shopId: ShopId, c: Omit<Commitment, "id">): Promise<Commitment> {

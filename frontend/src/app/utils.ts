@@ -1,11 +1,17 @@
 export function fmt(n: number) {
-  return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  if (Math.abs(n) < 0.01) return "₹0";
+  const val = n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  if (val === "-0") return "₹0";
+  return "₹" + val;
 }
 
 export function fmtShort(n: number) {
-  if (n >= 100000) return "₹" + (n / 100000).toFixed(1) + "L";
-  if (n >= 1000) return "₹" + (n / 1000).toFixed(1) + "K";
-  return "₹" + n;
+  if (Math.abs(n) < 0.01) return "₹0";
+  const absVal = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (absVal >= 100000) return "₹" + sign + (absVal / 100000).toFixed(1) + "L";
+  if (absVal >= 1000) return "₹" + sign + (absVal / 1000).toFixed(1) + "K";
+  return "₹" + sign + absVal.toFixed(1).replace(/\.0$/, "");
 }
 
 export function monthKey(d: Date) {

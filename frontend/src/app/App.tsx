@@ -97,6 +97,7 @@ export default function App() {
   );
   const [commitments, setCommitments] = useState<Commitment[]>([]);
   const [commitmentPayments, setCommitmentPayments] = useState<CommitmentPayment[]>([]);
+  const [allCommitmentPayments, setAllCommitmentPayments] = useState<CommitmentPayment[]>([]);
   const [shopStockList, setShopStockList] = useState<Record<ShopId, Record<string, StockStatus>>>({
     shop1: {},
     shop2: {},
@@ -192,6 +193,7 @@ export default function App() {
         setShopPurchases({ shop1: purchasesShop1, shop2: purchasesShop2 });
         setCommitments(commitmentsData.commitments);
         setCommitmentPayments(commitmentsData.payments);
+        setAllCommitmentPayments(commitmentsData.allPayments);
         setShopStock({ shop1: stockShop1, shop2: stockShop2 });
         setPersonalExpenses(personal);
         setDebts(debtRecords);
@@ -399,6 +401,7 @@ export default function App() {
       await api.deleteCommitment(activeShop, id);
       setCommitments((prev) => prev.filter((c) => c.id !== id));
       setCommitmentPayments((prev) => prev.filter((p) => p.commitmentId !== id));
+      setAllCommitmentPayments((prev) => prev.filter((p) => p.commitmentId !== id));
     } catch (error) {
       console.error("Failed to delete commitment:", error);
     }
@@ -417,6 +420,15 @@ export default function App() {
         }
         return [newP, ...prev];
       });
+      setAllCommitmentPayments((prev) => {
+        const idx = prev.findIndex((x) => x.id === newP.id);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = newP;
+          return updated;
+        }
+        return [newP, ...prev];
+      });
     } catch (error) {
       console.error("Failed to pay commitment:", error);
     }
@@ -428,6 +440,12 @@ export default function App() {
       setCommitmentPayments((prev) => {
         if (!updated) {
           // All partials removed — remove the whole payment entry
+          return prev.filter((p) => !(p.commitmentId === commitmentId && p.monthKey === monthKey));
+        }
+        return prev.map((p) => (p.commitmentId === commitmentId && p.monthKey === monthKey ? updated : p));
+      });
+      setAllCommitmentPayments((prev) => {
+        if (!updated) {
           return prev.filter((p) => !(p.commitmentId === commitmentId && p.monthKey === monthKey));
         }
         return prev.map((p) => (p.commitmentId === commitmentId && p.monthKey === monthKey ? updated : p));
@@ -1266,7 +1284,7 @@ export default function App() {
             debts={debts}
             salaryPayments={salaryPayments}
             commitments={commitments}
-            commitmentPayments={commitmentPayments}
+            commitmentPayments={allCommitmentPayments}
             onNavigateTo={setMainView}
             onSelectShop={setActiveShop}
             onDelete={deleteTransaction}
@@ -1299,7 +1317,7 @@ export default function App() {
         {mainView === "commitments" && (
           <CommitmentsView
             commitments={commitments}
-            payments={commitmentPayments}
+            payments={allCommitmentPayments}
             onAddCommitment={addCommitment}
             onDeleteCommitment={deleteCommitment}
             onMarkPaid={markCommitmentPaid}

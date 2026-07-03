@@ -88,165 +88,114 @@ export function DashboardView({
   // Compute combined totals
   const stats = useMemo(() => {
     // 1. Transactions Income/Expense
-    let cashIncome = 0;
-    let gpayIncome = 0;
-    let zomatoIncome = 0;
-    let cashExpense = 0;
-    let gpayExpense = 0;
-    let zomatoExpense = 0;
+    const cashIncome = allTxns.reduce((sum, t) => t.type === "income" && t.paymentMethod === "cash" ? sum + t.amount : sum, 0);
+    const gpayIncome = allTxns.reduce((sum, t) => t.type === "income" && t.paymentMethod === "gpay" ? sum + t.amount : sum, 0);
+    const zomatoIncome = allTxns.reduce((sum, t) => t.type === "income" && t.paymentMethod === "zomato" ? sum + t.amount : sum, 0);
 
-    allTxns.forEach((t) => {
-      if (t.type === "income") {
-        if (t.paymentMethod === "cash") cashIncome += t.amount;
-        else if (t.paymentMethod === "gpay") gpayIncome += t.amount;
-        else if (t.paymentMethod === "zomato") zomatoIncome += t.amount;
-      } else {
-        if (t.paymentMethod === "cash") cashExpense += t.amount;
-        else if (t.paymentMethod === "gpay") gpayExpense += t.amount;
-        else if (t.paymentMethod === "zomato") zomatoExpense += t.amount;
-      }
-    });
+    const cashExpense = allTxns.reduce((sum, t) => t.type === "expense" && t.paymentMethod === "cash" ? sum + t.amount : sum, 0);
+    const gpayExpense = allTxns.reduce((sum, t) => t.type === "expense" && t.paymentMethod === "gpay" ? sum + t.amount : sum, 0);
+    const zomatoExpense = allTxns.reduce((sum, t) => t.type === "expense" && t.paymentMethod === "zomato" ? sum + t.amount : sum, 0);
 
     // 2. Commitments Payments
-    let cashCommitments = 0;
-    let gpayCommitments = 0;
-    let zomatoCommitments = 0;
-    let totalCommitments = 0;
-    commitmentPayments.forEach((p) => {
-      totalCommitments += p.paidAmount;
-      if (p.paymentMethod === "cash") cashCommitments += p.paidAmount;
-      else if (p.paymentMethod === "gpay") gpayCommitments += p.paidAmount;
-      else if (p.paymentMethod === "zomato") zomatoCommitments += p.paidAmount;
-    });
+    const cashCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.partialPayments && p.partialPayments.length > 0) {
+        return sum + p.partialPayments.reduce((s, pp) => pp.paymentMethod === "cash" ? s + pp.amount : s, 0);
+      }
+      return p.paymentMethod === "cash" ? sum + p.paidAmount : sum;
+    }, 0);
+    const gpayCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.partialPayments && p.partialPayments.length > 0) {
+        return sum + p.partialPayments.reduce((s, pp) => pp.paymentMethod === "gpay" ? s + pp.amount : s, 0);
+      }
+      return p.paymentMethod === "gpay" ? sum + p.paidAmount : sum;
+    }, 0);
+    const zomatoCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.partialPayments && p.partialPayments.length > 0) {
+        return sum + p.partialPayments.reduce((s, pp) => pp.paymentMethod === "zomato" ? s + pp.amount : s, 0);
+      }
+      return p.paymentMethod === "zomato" ? sum + p.paidAmount : sum;
+    }, 0);
+    const totalCommitments = commitmentPayments.reduce((sum, p) => sum + p.paidAmount, 0);
 
     // 3. Personal Expenses
-    let cashPersonal = 0;
-    let gpayPersonal = 0;
-    let zomatoPersonal = 0;
-    let totalPersonal = 0;
-    personalExpenses.forEach((p) => {
-      totalPersonal += p.amount;
-      const pm = p.paymentMethod || "cash";
-      if (pm === "cash") cashPersonal += p.amount;
-      else if (pm === "gpay") gpayPersonal += p.amount;
-      else if (pm === "zomato") zomatoPersonal += p.amount;
-    });
+    const cashPersonal = personalExpenses.reduce((sum, p) => (p.paymentMethod || "cash") === "cash" ? sum + p.amount : sum, 0);
+    const gpayPersonal = personalExpenses.reduce((sum, p) => (p.paymentMethod || "cash") === "gpay" ? sum + p.amount : sum, 0);
+    const zomatoPersonal = personalExpenses.reduce((sum, p) => (p.paymentMethod || "cash") === "zomato" ? sum + p.amount : sum, 0);
 
-    // 4. Debt Payments & Outstanding Debt
-    let cashDebt = 0;
-    let gpayDebt = 0;
-    let zomatoDebt = 0;
-    let totalDebtPayments = 0;
-    let totalDebtOutstanding = 0;
-    debts.forEach((d) => {
-      totalDebtOutstanding += d.remainingAmount;
-      (d.payments || []).forEach((p) => {
-        totalDebtPayments += p.amount;
-        const pm = p.paymentMethod || "cash";
-        if (pm === "cash") cashDebt += p.amount;
-        else if (pm === "gpay") gpayDebt += p.amount;
-        else if (pm === "zomato") zomatoDebt += p.amount;
-      });
-    });
+    // 4. Debt Payments
+    const cashDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => (p.paymentMethod || "cash") === "cash" ? s + p.amount : s, 0), 0);
+    const gpayDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => (p.paymentMethod || "cash") === "gpay" ? s + p.amount : s, 0), 0);
+    const zomatoDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => (p.paymentMethod || "cash") === "zomato" ? s + p.amount : s, 0), 0);
 
     // 5. Salary Payments
-    let cashSalary = 0;
-    let gpaySalary = 0;
-    let zomatoSalary = 0;
-    let totalSalary = 0;
-    salaryPayments.forEach((p) => {
-      totalSalary += p.amount;
-      const pm = p.paymentMethod || "cash";
-      if (pm === "cash") cashSalary += p.amount;
-      else if (pm === "gpay") gpaySalary += p.amount;
-      else if (pm === "zomato") zomatoSalary += p.amount;
-    });
+    const cashSalary = salaryPayments.reduce((sum, p) => (p.paymentMethod || "cash") === "cash" ? sum + p.amount : sum, 0);
+    const gpaySalary = salaryPayments.reduce((sum, p) => (p.paymentMethod || "cash") === "gpay" ? sum + p.amount : sum, 0);
+    const zomatoSalary = salaryPayments.reduce((sum, p) => (p.paymentMethod || "cash") === "zomato" ? sum + p.amount : sum, 0);
+    const totalSalary = salaryPayments.reduce((sum, p) => sum + p.amount, 0);
 
     // Calculate symmetrical Cash/GPay/Zomato remaining balances
     const cash = cashIncome - cashExpense - cashCommitments - cashPersonal - cashDebt - cashSalary;
     const gpay = gpayIncome - gpayExpense - gpayCommitments - gpayPersonal - gpayDebt - gpaySalary;
     const zomato = zomatoIncome - zomatoExpense - zomatoCommitments - zomatoPersonal - zomatoDebt - zomatoSalary;
 
-    const expensesTotal = cashExpense + gpayExpense + zomatoExpense;
+    const shopExpenses = cashExpense + gpayExpense + zomatoExpense;
     const totalSalesIncome = cashIncome + gpayIncome + zomatoIncome;
     const balance = cash + gpay + zomato;
 
-    // Net Profit = Overall Sales − (Expenses + Commitments)
-    const netProfit = totalSalesIncome - (expensesTotal + totalCommitments);
+    // Total Expenses includes standard shop expenses + commitments + salary payments
+    const totalExpenses = shopExpenses + totalCommitments + totalSalary;
+
+    // Net Profit = Overall Sales - (Shop Expenses + Commitments + Salaries)
+    const netProfit = totalSalesIncome - totalExpenses;
 
     // Yesterday closing balances calculation (dates strictly before today)
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    let yestCashIncome = 0;
-    let yestGpayIncome = 0;
-    let yestZomatoIncome = 0;
-    let yestCashExpense = 0;
-    let yestGpayExpense = 0;
-    let yestZomatoExpense = 0;
+    // Yesterday Incomes
+    const yestCashIncome = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "income" && t.paymentMethod === "cash" ? sum + t.amount : sum, 0);
+    const yestGpayIncome = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "income" && t.paymentMethod === "gpay" ? sum + t.amount : sum, 0);
+    const yestZomatoIncome = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "income" && t.paymentMethod === "zomato" ? sum + t.amount : sum, 0);
 
-    allTxns.forEach((t) => {
-      if (new Date(t.date) < todayStart) {
-        if (t.type === "income") {
-          if (t.paymentMethod === "cash") yestCashIncome += t.amount;
-          else if (t.paymentMethod === "gpay") yestGpayIncome += t.amount;
-          else if (t.paymentMethod === "zomato") yestZomatoIncome += t.amount;
-        } else {
-          if (t.paymentMethod === "cash") yestCashExpense += t.amount;
-          else if (t.paymentMethod === "gpay") yestGpayExpense += t.amount;
-          else if (t.paymentMethod === "zomato") yestZomatoExpense += t.amount;
-        }
+    // Yesterday Expenses
+    const yestCashExpense = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "expense" && t.paymentMethod === "cash" ? sum + t.amount : sum, 0);
+    const yestGpayExpense = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "expense" && t.paymentMethod === "gpay" ? sum + t.amount : sum, 0);
+    const yestZomatoExpense = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "expense" && t.paymentMethod === "zomato" ? sum + t.amount : sum, 0);
+
+    // Yesterday Commitments
+    const yestCashCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.partialPayments && p.partialPayments.length > 0) {
+        return sum + p.partialPayments.reduce((s, pp) => new Date(pp.paidDate) < todayStart && pp.paymentMethod === "cash" ? s + pp.amount : s, 0);
       }
-    });
-
-    let yestCashCommitments = 0;
-    let yestGpayCommitments = 0;
-    let yestZomatoCommitments = 0;
-    commitmentPayments.forEach((p) => {
-      if (new Date(p.paidDate) < todayStart) {
-        if (p.paymentMethod === "cash") yestCashCommitments += p.paidAmount;
-        else if (p.paymentMethod === "gpay") yestGpayCommitments += p.paidAmount;
-        else if (p.paymentMethod === "zomato") yestZomatoCommitments += p.paidAmount;
+      return new Date(p.paidDate) < todayStart && p.paymentMethod === "cash" ? sum + p.paidAmount : sum;
+    }, 0);
+    const yestGpayCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.partialPayments && p.partialPayments.length > 0) {
+        return sum + p.partialPayments.reduce((s, pp) => new Date(pp.paidDate) < todayStart && pp.paymentMethod === "gpay" ? s + pp.amount : s, 0);
       }
-    });
-
-    let yestCashPersonal = 0;
-    let yestGpayPersonal = 0;
-    let yestZomatoPersonal = 0;
-    personalExpenses.forEach((p) => {
-      if (new Date(p.date) < todayStart) {
-        const pm = p.paymentMethod || "cash";
-        if (pm === "cash") yestCashPersonal += p.amount;
-        else if (pm === "gpay") yestGpayPersonal += p.amount;
-        else if (pm === "zomato") yestZomatoPersonal += p.amount;
+      return new Date(p.paidDate) < todayStart && p.paymentMethod === "gpay" ? sum + p.paidAmount : sum;
+    }, 0);
+    const yestZomatoCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.partialPayments && p.partialPayments.length > 0) {
+        return sum + p.partialPayments.reduce((s, pp) => new Date(pp.paidDate) < todayStart && pp.paymentMethod === "zomato" ? s + pp.amount : s, 0);
       }
-    });
+      return new Date(p.paidDate) < todayStart && p.paymentMethod === "zomato" ? sum + p.paidAmount : sum;
+    }, 0);
 
-    let yestCashDebt = 0;
-    let yestGpayDebt = 0;
-    let yestZomatoDebt = 0;
-    debts.forEach((d) => {
-      (d.payments || []).forEach((p) => {
-        if (new Date(p.date) < todayStart) {
-          const pm = p.paymentMethod || "cash";
-          if (pm === "cash") yestCashDebt += p.amount;
-          else if (pm === "gpay") yestGpayDebt += p.amount;
-          else if (pm === "zomato") yestZomatoDebt += p.amount;
-        }
-      });
-    });
+    // Yesterday Personal Expenses
+    const yestCashPersonal = personalExpenses.reduce((sum, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "cash" ? sum + p.amount : sum, 0);
+    const yestGpayPersonal = personalExpenses.reduce((sum, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "gpay" ? sum + p.amount : sum, 0);
+    const yestZomatoPersonal = personalExpenses.reduce((sum, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "zomato" ? sum + p.amount : sum, 0);
 
-    let yestCashSalary = 0;
-    let yestGpaySalary = 0;
-    let yestZomatoSalary = 0;
-    salaryPayments.forEach((p) => {
-      if (new Date(p.paidDate) < todayStart) {
-        const pm = p.paymentMethod || "cash";
-        if (pm === "cash") yestCashSalary += p.amount;
-        else if (pm === "gpay") yestGpaySalary += p.amount;
-        else if (pm === "zomato") yestZomatoSalary += p.amount;
-      }
-    });
+    // Yesterday Debt Payments
+    const yestCashDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "cash" ? s + p.amount : s, 0), 0);
+    const yestGpayDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "gpay" ? s + p.amount : s, 0), 0);
+    const yestZomatoDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "zomato" ? s + p.amount : s, 0), 0);
+
+    // Yesterday Salary Payments
+    const yestCashSalary = salaryPayments.reduce((sum, p) => new Date(p.paidDate) < todayStart && (p.paymentMethod || "cash") === "cash" ? sum + p.amount : sum, 0);
+    const yestGpaySalary = salaryPayments.reduce((sum, p) => new Date(p.paidDate) < todayStart && (p.paymentMethod || "cash") === "gpay" ? sum + p.amount : sum, 0);
+    const yestZomatoSalary = salaryPayments.reduce((sum, p) => new Date(p.paidDate) < todayStart && (p.paymentMethod || "cash") === "zomato" ? sum + p.amount : sum, 0);
 
     const yesterdayCash = yestCashIncome - yestCashExpense - yestCashCommitments - yestCashPersonal - yestCashDebt - yestCashSalary;
     const yesterdayGpay = yestGpayIncome - yestGpayExpense - yestGpayCommitments - yestGpayPersonal - yestGpayDebt - yestGpaySalary;
@@ -259,7 +208,7 @@ export function DashboardView({
       yesterdayCash,
       yesterdayGpay,
       yesterdayZomato,
-      expenses: expensesTotal,
+      expenses: totalExpenses,
       balance,
       netProfit,
       incomeTotal: totalSalesIncome,
@@ -455,7 +404,7 @@ export function DashboardView({
             }`}>
               {fmt(stats.netProfit)}
             </p>
-            <p className="text-[10px] text-muted-foreground mt-1">Overall Sales − (Expenses + Commitments)</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Overall Sales − (Shop Expenses + Commitments + Salaries)</p>
           </div>
         </div>
 

@@ -17,7 +17,8 @@ exports.getAll = async (req, res) => {
       payment: paidMap[c._id.toString()] || null,
       isPaid: !!paidMap[c._id.toString()],
     }));
-    res.json({ success: true, data });
+    const allPayments = await CommitmentPayment.find({});
+    res.json({ success: true, data, allPayments });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

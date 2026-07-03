@@ -1,0 +1,107 @@
+import '../models/models.dart';
+
+class PredefinedItem {
+  final String name;
+  final PurchaseUnit unit;
+  final double basePrice;
+
+  const PredefinedItem({
+    required this.name,
+    required this.unit,
+    required this.basePrice,
+  });
+}
+
+const Map<String, List<PredefinedItem>> predefinedPurchaseItems = {
+  'Fruits & Vegetables': [
+    PredefinedItem(name: 'Watermelon', unit: PurchaseUnit.pcs, basePrice: 90),
+    PredefinedItem(name: 'Papaya', unit: PurchaseUnit.kg, basePrice: 18),
+    PredefinedItem(name: 'Guava', unit: PurchaseUnit.kg, basePrice: 35),
+    PredefinedItem(name: 'Pineapple', unit: PurchaseUnit.kg, basePrice: 55),
+    PredefinedItem(name: 'Grapes', unit: PurchaseUnit.kg, basePrice: 120),
+    PredefinedItem(name: 'Amla', unit: PurchaseUnit.kg, basePrice: 80),
+    PredefinedItem(name: 'Mosambi', unit: PurchaseUnit.pcs, basePrice: 45),
+    PredefinedItem(name: 'Apple', unit: PurchaseUnit.kg, basePrice: 150),
+    PredefinedItem(name: 'Orange', unit: PurchaseUnit.kg, basePrice: 80),
+    PredefinedItem(name: 'Pomegranate', unit: PurchaseUnit.boxes, basePrice: 250),
+    PredefinedItem(name: 'Fig fruit', unit: PurchaseUnit.boxes, basePrice: 180),
+    PredefinedItem(name: 'Red banana', unit: PurchaseUnit.pcs, basePrice: 10),
+    PredefinedItem(name: 'Pacha banana', unit: PurchaseUnit.pcs, basePrice: 6),
+    PredefinedItem(name: 'Nentheram pazham', unit: PurchaseUnit.pcs, basePrice: 8),
+    PredefinedItem(name: 'Musk melon', unit: PurchaseUnit.pcs, basePrice: 100),
+    PredefinedItem(name: 'Lemon', unit: PurchaseUnit.pcs, basePrice: 4),
+    PredefinedItem(name: 'Mint leaves', unit: PurchaseUnit.packets, basePrice: 15),
+  ],
+  'Packaging & Plastics': [
+    PredefinedItem(name: '300 ml cup with lid', unit: PurchaseUnit.packets, basePrice: 120),
+    PredefinedItem(name: '350 ml cup with lid', unit: PurchaseUnit.packets, basePrice: 140),
+    PredefinedItem(name: '750 ml cup', unit: PurchaseUnit.packets, basePrice: 180),
+    PredefinedItem(name: 'Hand gloves', unit: PurchaseUnit.packets, basePrice: 50),
+    PredefinedItem(name: 'Tissue paper', unit: PurchaseUnit.packets, basePrice: 45),
+    PredefinedItem(name: 'Straw', unit: PurchaseUnit.packets, basePrice: 90),
+    PredefinedItem(name: 'spoon', unit: PurchaseUnit.packets, basePrice: 60),
+    PredefinedItem(name: 'PVC fork', unit: PurchaseUnit.packets, basePrice: 70),
+    PredefinedItem(name: 'Big bowl', unit: PurchaseUnit.packets, basePrice: 200),
+    PredefinedItem(name: 'Salad box G plate', unit: PurchaseUnit.packets, basePrice: 150),
+    PredefinedItem(name: 'Printing roll (2 inch)', unit: PurchaseUnit.packets, basePrice: 80),
+    PredefinedItem(name: 'Cellotape roll (1 inch)', unit: PurchaseUnit.pcs, basePrice: 20),
+    PredefinedItem(name: 'Rubber band', unit: PurchaseUnit.packets, basePrice: 40),
+    PredefinedItem(name: '250ml rc parsal cup', unit: PurchaseUnit.packets, basePrice: 110),
+    PredefinedItem(name: 'Silver cover – 6×9', unit: PurchaseUnit.kg, basePrice: 130),
+    PredefinedItem(name: 'Silver cover – 8×10', unit: PurchaseUnit.kg, basePrice: 130),
+    PredefinedItem(name: '350ml pet bottele', unit: PurchaseUnit.pcs, basePrice: 6),
+  ],
+  'Other Supplies': [
+    PredefinedItem(name: 'Milk', unit: PurchaseUnit.liters, basePrice: 60),
+    PredefinedItem(name: 'Sugar', unit: PurchaseUnit.kg, basePrice: 42),
+    PredefinedItem(name: 'Curd', unit: PurchaseUnit.liters, basePrice: 50),
+    PredefinedItem(name: 'Ice cubes', unit: PurchaseUnit.kg, basePrice: 10),
+    PredefinedItem(name: 'RO Water', unit: PurchaseUnit.liters, basePrice: 5),
+    PredefinedItem(name: 'Soda', unit: PurchaseUnit.pcs, basePrice: 20),
+    PredefinedItem(name: '7Up', unit: PurchaseUnit.pcs, basePrice: 40),
+    PredefinedItem(name: 'Oreo', unit: PurchaseUnit.packets, basePrice: 30),
+    PredefinedItem(name: 'KitKat', unit: PurchaseUnit.boxes, basePrice: 250),
+    PredefinedItem(name: 'Boost', unit: PurchaseUnit.packets, basePrice: 15),
+    PredefinedItem(name: 'wipping cream', unit: PurchaseUnit.packets, basePrice: 180),
+    PredefinedItem(name: 'fresh cream', unit: PurchaseUnit.packets, basePrice: 120),
+    PredefinedItem(name: 'custard powder', unit: PurchaseUnit.pcs, basePrice: 45),
+  ],
+  'Ice Cream': [
+    PredefinedItem(name: 'Vanilla', unit: PurchaseUnit.pcs, basePrice: 150),
+    PredefinedItem(name: 'Strawberry', unit: PurchaseUnit.pcs, basePrice: 160),
+    PredefinedItem(name: 'Black currant', unit: PurchaseUnit.boxes, basePrice: 220),
+    PredefinedItem(name: 'Chocolate', unit: PurchaseUnit.boxes, basePrice: 180),
+    PredefinedItem(name: 'Falooda sev', unit: PurchaseUnit.packets, basePrice: 40),
+    PredefinedItem(name: 'Sabja seeds', unit: PurchaseUnit.kg, basePrice: 280),
+    PredefinedItem(name: 'Strawberry jelly', unit: PurchaseUnit.boxes, basePrice: 90),
+    PredefinedItem(name: 'Pineapple jelly', unit: PurchaseUnit.boxes, basePrice: 90),
+  ],
+  'Dry Fruits': [
+    PredefinedItem(name: 'Dry grapes (black and yellow)', unit: PurchaseUnit.kg, basePrice: 350),
+    PredefinedItem(name: 'Cashew', unit: PurchaseUnit.kg, basePrice: 900),
+    PredefinedItem(name: 'Badam', unit: PurchaseUnit.kg, basePrice: 850),
+    PredefinedItem(name: 'Dates', unit: PurchaseUnit.kg, basePrice: 240),
+  ],
+  'Cleaning Utility': [
+    PredefinedItem(name: 'Scrubber', unit: PurchaseUnit.packets, basePrice: 30),
+    PredefinedItem(name: 'Vim bar liquid', unit: PurchaseUnit.packets, basePrice: 45),
+    PredefinedItem(name: 'Cleaning cloth', unit: PurchaseUnit.packets, basePrice: 40),
+    PredefinedItem(name: 'Dustbin cover(small and extra large)', unit: PurchaseUnit.packets, basePrice: 50),
+  ],
+  'Essence': [
+    PredefinedItem(name: 'Rose milk Syrup', unit: PurchaseUnit.pcs, basePrice: 180),
+    PredefinedItem(name: 'Yellow sarbath', unit: PurchaseUnit.pcs, basePrice: 140),
+    PredefinedItem(name: 'Milk sarbath', unit: PurchaseUnit.pcs, basePrice: 150),
+    PredefinedItem(name: 'Red sarbath', unit: PurchaseUnit.pcs, basePrice: 140),
+    PredefinedItem(name: 'Strawberry syrup', unit: PurchaseUnit.pcs, basePrice: 160),
+    PredefinedItem(name: 'Chocolate syrup', unit: PurchaseUnit.pcs, basePrice: 130),
+    PredefinedItem(name: 'Black currant syrup', unit: PurchaseUnit.pcs, basePrice: 170),
+    PredefinedItem(name: 'Butterscotch syrup', unit: PurchaseUnit.pcs, basePrice: 170),
+    PredefinedItem(name: 'Litchi syrup', unit: PurchaseUnit.pcs, basePrice: 160),
+    PredefinedItem(name: 'Blueberry syrup', unit: PurchaseUnit.pcs, basePrice: 180),
+    PredefinedItem(name: 'Mango syrup', unit: PurchaseUnit.pcs, basePrice: 160),
+    PredefinedItem(name: 'Blue curacao (mojito)', unit: PurchaseUnit.pcs, basePrice: 220),
+    PredefinedItem(name: 'Green mint', unit: PurchaseUnit.pcs, basePrice: 160),
+    PredefinedItem(name: 'Jaljira powder', unit: PurchaseUnit.packets, basePrice: 50),
+  ],
+};
