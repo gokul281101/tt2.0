@@ -14,6 +14,8 @@ interface AttendanceViewProps {
   onSaveAttendance: (staffId: string, date: string, status: "present" | "absent" | "half-day") => void;
   onPaySalary: (p: Omit<SalaryPayment, "id">) => void;
   onDeleteSalaryPayment: (id: string) => void;
+  selectedMonth: string;
+  onMonthChange: (mk: string) => void;
 }
 
 export function AttendanceView({
@@ -26,6 +28,8 @@ export function AttendanceView({
   onSaveAttendance,
   onPaySalary,
   onDeleteSalaryPayment,
+  selectedMonth,
+  onMonthChange,
 }: AttendanceViewProps) {
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [newStaffName, setNewStaffName] = useState("");
@@ -67,9 +71,8 @@ export function AttendanceView({
     return `${year}-${month}-${day}`;
   };
   const [activeDate, setActiveDate] = useState(getLocalDateString());
-  const [activeMonth, setActiveMonth] = useState(
-    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
-  );
+  const activeMonth = selectedMonth;
+  const setActiveMonth = onMonthChange;
 
   // Calendar Detail Modal states
   const [showCalendarModal, setShowCalendarModal] = useState(false);

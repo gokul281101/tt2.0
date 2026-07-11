@@ -25,6 +25,8 @@ interface CommitmentsViewProps {
   onDeleteCommitment: (id: string) => void;
   onMarkPaid: (p: CommitmentPayment) => void;
   onDeletePartialPayment: (commitmentId: string, partialId: string, monthKey: string) => void;
+  selectedMonth: string;
+  onMonthChange: (mk: string) => void;
 }
 
 export function CommitmentsView({
@@ -34,6 +36,8 @@ export function CommitmentsView({
   onDeleteCommitment,
   onMarkPaid,
   onDeletePartialPayment,
+  selectedMonth,
+  onMonthChange,
 }: CommitmentsViewProps) {
   const globalColor = "#7c3aed";
   const now = new Date();
@@ -48,7 +52,8 @@ export function CommitmentsView({
     return list;
   }, []);
 
-  const [selectedMk, setSelectedMk] = useState(currentMk);
+  const selectedMk = selectedMonth;
+  const setSelectedMk = onMonthChange;
   const [showAddForm, setShowAddForm] = useState(false);
   const [payModal, setPayModal] = useState<Commitment | null>(null);
   const [historyModal, setHistoryModal] = useState<Commitment | null>(null);

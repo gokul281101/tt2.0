@@ -59,9 +59,18 @@ interface FinanceViewProps {
     }[]
   ) => void;
   onDelete: (id: string, type: TransactionType, targetShop: ShopId) => void;
+  selectedMonth: string;
+  onMonthChange: (mk: string) => void;
 }
 
-export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceViewProps) {
+export function FinanceView({
+  shopId,
+  transactions,
+  onAdd,
+  onDelete,
+  selectedMonth,
+  onMonthChange,
+}: FinanceViewProps) {
   const shop = SHOPS[shopId];
   const [showForm, setShowForm] = useState(false);
   const [formType, setFormType] = useState<TransactionType>("income");
@@ -74,9 +83,10 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
 
   // Date Filters
   const [filterDate, setFilterDate] = useState("");
-  const [filterMonth, setFilterMonth] = useState(""); // YYYY-MM
   const [filterYear, setFilterYear] = useState(""); // YYYY
   const [filterCategory, setFilterCategory] = useState("");
+
+  const filterMonth = filterDate || filterYear ? "" : selectedMonth;
 
   // Dynamic Item/Purchase state
   const [formItem, setFormItem] = useState("");
@@ -271,9 +281,10 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
 
   function clearFilters() {
     setFilterDate("");
-    setFilterMonth("");
     setFilterYear("");
     setFilterCategory("");
+    const d = new Date();
+    onMonthChange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
 
   return (
@@ -306,7 +317,6 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
               value={filterDate}
               onChange={(e) => {
                 setFilterDate(e.target.value);
-                setFilterMonth("");
                 setFilterYear("");
               }}
               className="w-full bg-input-background rounded-xl px-3 py-2 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
@@ -316,9 +326,9 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
             <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Month Filter</label>
             <input
               type="month"
-              value={filterMonth}
+              value={selectedMonth}
               onChange={(e) => {
-                setFilterMonth(e.target.value);
+                onMonthChange(e.target.value);
                 setFilterDate("");
                 setFilterYear("");
               }}
@@ -332,7 +342,6 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
               onChange={(e) => {
                 setFilterYear(e.target.value);
                 setFilterDate("");
-                setFilterMonth("");
               }}
               className="w-full bg-input-background rounded-xl px-3 py-2 text-xs border border-border focus:outline-none focus:ring-1 focus:ring-ring"
             >
@@ -360,7 +369,7 @@ export function FinanceView({ shopId, transactions, onAdd, onDelete }: FinanceVi
           <div className="flex items-end">
             <button
               onClick={clearFilters}
-              disabled={!filterDate && !filterMonth && !filterYear && !filterCategory}
+              disabled={!filterDate && !selectedMonth && !filterYear && !filterCategory}
               className="w-full py-2 bg-muted text-muted-foreground border rounded-xl text-xs font-bold hover:bg-muted/85 disabled:opacity-40 transition-all"
             >
               Reset Filters

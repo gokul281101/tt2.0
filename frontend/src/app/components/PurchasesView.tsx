@@ -15,7 +15,7 @@ import {
   CATEGORY_COLORS_BG,
   CATEGORY_COLORS_TEXT,
 } from "../constants";
-import { fmt, monthKey } from "../utils";
+import { fmt, mkFromDate } from "../utils";
 import { ItemDetailModal } from "./ItemDetailModal";
 import { StockListColumn } from "./StockListColumn";
 
@@ -29,6 +29,8 @@ interface PurchasesViewProps {
   customItems: string[];
   onAddCustomItem: (name: string) => void;
   onRemoveCustomItem: (name: string) => void;
+  selectedMonth: string;
+  onMonthChange: (mk: string) => void;
 }
 
 export function PurchasesView({
@@ -41,6 +43,8 @@ export function PurchasesView({
   customItems,
   onAddCustomItem,
   onRemoveCustomItem,
+  selectedMonth,
+  onMonthChange,
 }: PurchasesViewProps) {
   const shop = SHOPS[shopId];
 
@@ -55,16 +59,16 @@ export function PurchasesView({
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
 
   const now = new Date();
-  const currentMonthKey = monthKey(now);
+  const currentMonthKey = useMemo(() => mkFromDate(now), []);
 
-  // Month filter state for KPI / chart / categories
-  const [filterMonthKey, setFilterMonthKey] = useState(currentMonthKey);
+  // Month filter key is mapped directly to global selectedMonth
+  const filterMonthKey = selectedMonth;
 
   // Navigate months
   function shiftMonth(delta: number) {
     const [y, m] = filterMonthKey.split("-").map(Number);
     const d = new Date(y, m - 1 + delta, 1);
-    setFilterMonthKey(monthKey(d));
+    onMonthChange(mkFromDate(d));
   }
 
   const filterMonthLabel = (() => {
@@ -99,7 +103,7 @@ export function PurchasesView({
         };
       }
       map[p.itemName].allPurchases.push(p);
-      if (monthKey(p.date) === filterMonthKey) {
+      if (mkFromDate(p.date) === filterMonthKey) {
         map[p.itemName].count += 1;
         map[p.itemName].totalQty += p.quantity;
         map[p.itemName].totalPrice += p.totalPrice;
@@ -130,7 +134,7 @@ export function PurchasesView({
   const thisMonthTotal = useMemo(
     () =>
       purchases
-        .filter((p) => monthKey(p.date) === filterMonthKey)
+        .filter((p) => mkFromDate(p.date) === filterMonthKey)
         .reduce((s, p) => s + p.totalPrice, 0),
     [purchases, filterMonthKey]
   );
@@ -374,7 +378,7 @@ export function PurchasesView({
           ).sort((a, b) => b[1] - a[1])[0];
 
           const filterMonthCount = purchases.filter(
-            (p) => monthKey(p.date) === filterMonthKey
+            (p) => mkFromDate(p.date) === filterMonthKey
           ).length;
 
           return (

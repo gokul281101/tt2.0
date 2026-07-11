@@ -89,6 +89,10 @@ export default function App() {
   const [, setUserEmail] = useState<string>("admin@jsfinance.com");
   const [activeShop, setActiveShop] = useState<ShopId>("shop1");
   const [mainView, setMainView] = useState<MainView>("dashboard");
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [shopTransactions, setShopTransactions] = useState<Record<ShopId, Transaction[]>>(
     INITIAL_TRANSACTIONS
   );
@@ -1285,6 +1289,9 @@ export default function App() {
             salaryPayments={salaryPayments}
             commitments={commitments}
             commitmentPayments={allCommitmentPayments}
+            purchases={shopPurchases}
+            selectedMonth={selectedMonth}
+            onMonthChange={setSelectedMonth}
             onNavigateTo={setMainView}
             onSelectShop={setActiveShop}
             onDelete={deleteTransaction}
@@ -1299,6 +1306,8 @@ export default function App() {
             transactions={shopTransactions[activeShop] || []}
             onAdd={addTransaction}
             onDelete={deleteTransaction}
+            selectedMonth={selectedMonth}
+            onMonthChange={setSelectedMonth}
           />
         )}
         {mainView === "purchases" && (
@@ -1312,6 +1321,8 @@ export default function App() {
             customItems={shopCustomItems[activeShop] || []}
             onAddCustomItem={addCustomStockItem}
             onRemoveCustomItem={removeCustomStockItem}
+            selectedMonth={selectedMonth}
+            onMonthChange={setSelectedMonth}
           />
         )}
         {mainView === "commitments" && (
@@ -1322,6 +1333,8 @@ export default function App() {
             onDeleteCommitment={deleteCommitment}
             onMarkPaid={markCommitmentPaid}
             onDeletePartialPayment={deleteCommitmentPartialPayment}
+            selectedMonth={selectedMonth}
+            onMonthChange={setSelectedMonth}
           />
         )}
         {mainView === "personal" && (
@@ -1329,6 +1342,7 @@ export default function App() {
             expenses={personalExpenses}
             onAdd={handleAddPersonal}
             onDelete={handleDeletePersonal}
+            selectedMonth={selectedMonth}
           />
         )}
         {mainView === "debt" && (
@@ -1351,6 +1365,8 @@ export default function App() {
             onSaveAttendance={handleSaveAttendance}
             onPaySalary={handlePaySalary}
             onDeleteSalaryPayment={handleDeleteSalaryPayment}
+            selectedMonth={selectedMonth}
+            onMonthChange={setSelectedMonth}
           />
         )}
         {mainView === "reports" && (
@@ -1360,6 +1376,7 @@ export default function App() {
             debts={debts}
             salaryReport={salaryReportList}
             personalExpenses={personalExpenses}
+            selectedMonth={selectedMonth}
           />
         )}
         {mainView === "settings" && (

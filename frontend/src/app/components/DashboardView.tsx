@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Banknote,
   Smartphone,
@@ -11,6 +11,8 @@ import {
   Flame,
   Trash2,
   HeartHandshake,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   BarChart,
@@ -33,9 +35,10 @@ import type {
   SalaryPayment,
   Commitment,
   CommitmentPayment,
+  Purchase,
 } from "../types";
 import { SHOPS } from "../constants";
-import { fmt, fmtShort } from "../utils";
+import { fmt, fmtShort, mkFromDate, mkLabel } from "../utils";
 
 interface DashboardViewProps {
   transactions: Record<ShopId, Transaction[]>;
@@ -44,6 +47,9 @@ interface DashboardViewProps {
   salaryPayments: SalaryPayment[];
   commitments: Commitment[];
   commitmentPayments: CommitmentPayment[];
+  purchases: Record<ShopId, Purchase[]>;
+  selectedMonth: string;
+  onMonthChange: (mk: string) => void;
   onNavigateTo: (view: any) => void;
   onSelectShop: (shopId: ShopId) => void;
   onDelete: (id: string, type: any, targetShop: ShopId) => void;
@@ -59,6 +65,9 @@ export function DashboardView({
   salaryPayments,
   commitments,
   commitmentPayments,
+  purchases,
+  selectedMonth,
+  onMonthChange,
   onNavigateTo,
   onSelectShop,
   onDelete,
@@ -66,6 +75,17 @@ export function DashboardView({
   onAddExpense,
   onAddPersonal,
 }: DashboardViewProps) {
+  const currentMonthKey = useMemo(() => mkFromDate(new Date()), []);
+  const filterMonthKey = selectedMonth;
+
+  function shiftMonth(delta: number) {
+    const [y, m] = filterMonthKey.split("-").map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    onMonthChange(mkFromDate(d));
+  }
+
+  const isCurrentMonth = filterMonthKey === currentMonthKey;
+  const filterMonthLabel = mkLabel(filterMonthKey);
   // Combine all transactions with shop annotations
   const allTxns = useMemo(() => {
     const list: (Transaction & { shopId: ShopId })[] = [];
@@ -87,119 +107,341 @@ export function DashboardView({
 
   // Compute combined totals
   const stats = useMemo(() => {
-    // 1. Transactions Income/Expense
-    const cashIncome = allTxns.reduce((sum, t) => t.type === "income" && t.paymentMethod === "cash" ? sum + t.amount : sum, 0);
-    const gpayIncome = allTxns.reduce((sum, t) => t.type === "income" && t.paymentMethod === "gpay" ? sum + t.amount : sum, 0);
-    const zomatoIncome = allTxns.reduce((sum, t) => t.type === "income" && t.paymentMethod === "zomato" ? sum + t.amount : sum, 0);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
 
-    const cashExpense = allTxns.reduce((sum, t) => t.type === "expense" && t.paymentMethod === "cash" ? sum + t.amount : sum, 0);
-    const gpayExpense = allTxns.reduce((sum, t) => t.type === "expense" && t.paymentMethod === "gpay" ? sum + t.amount : sum, 0);
-    const zomatoExpense = allTxns.reduce((sum, t) => t.type === "expense" && t.paymentMethod === "zomato" ? sum + t.amount : sum, 0);
+    const isInSelectedMonth = (d: any) => {
+      if (!d) return false;
+      const dateObj = d instanceof Date ? d : new Date(d);
+      return mkFromDate(dateObj) === filterMonthKey;
+    };
+
+    const isBeforeToday = (d: any) => {
+      if (!d) return false;
+      const dateObj = d instanceof Date ? d : new Date(d);
+      return dateObj < todayStart;
+    };
+
+    // 1. Transactions Income/Expense for Selected Month
+    const monthlyTxns = allTxns.filter((t) => isInSelectedMonth(t.date));
+
+    const monthlyIncome = monthlyTxns.reduce(
+      (sum, t) => (t.type === "income" ? sum + t.amount : sum),
+      0
+    );
+    const cashIncome = monthlyTxns.reduce(
+      (sum, t) => (t.type === "income" && t.paymentMethod === "cash" ? sum + t.amount : sum),
+      0
+    );
+    const gpayIncome = monthlyTxns.reduce(
+      (sum, t) => (t.type === "income" && t.paymentMethod === "gpay" ? sum + t.amount : sum),
+      0
+    );
+    const zomatoIncome = monthlyTxns.reduce(
+      (sum, t) => (t.type === "income" && t.paymentMethod === "zomato" ? sum + t.amount : sum),
+      0
+    );
+
+    // Monthly expense transactions (which ALREADY include all purchases)
+    const cashExpense = monthlyTxns.reduce(
+      (sum, t) => (t.type === "expense" && t.paymentMethod === "cash" ? sum + t.amount : sum),
+      0
+    );
+    const gpayExpense = monthlyTxns.reduce(
+      (sum, t) => (t.type === "expense" && t.paymentMethod === "gpay" ? sum + t.amount : sum),
+      0
+    );
+    const zomatoExpense = monthlyTxns.reduce(
+      (sum, t) => (t.type === "expense" && t.paymentMethod === "zomato" ? sum + t.amount : sum),
+      0
+    );
+
+    // Combine all purchases across shops
+    const allPurchasesList: Purchase[] = [];
+    (Object.keys(purchases) as ShopId[]).forEach((sid) => {
+      (purchases[sid] || []).forEach((p) => {
+        allPurchasesList.push(p);
+      });
+    });
+
+    const monthlyPurchases = allPurchasesList.filter((p) => isInSelectedMonth(p.date));
+    const totalPurchases = monthlyPurchases.reduce((sum, p) => sum + p.totalPrice, 0);
+
+    // Extract purchase expense IDs to prevent double counting in Net Profit ONLY
+    const purchaseExpenseIds = new Set<string>();
+    monthlyPurchases.forEach((p) => {
+      if (p.expenseId) {
+        purchaseExpenseIds.add(p.expenseId);
+      }
+    });
+
+    // Monthly Expenses (which already automatically includes all purchases)
+    const monthlyExpenses = monthlyTxns.reduce(
+      (sum, t) => (t.type === "expense" ? sum + t.amount : sum),
+      0
+    );
 
     // 2. Commitments Payments
     const cashCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.monthKey !== filterMonthKey) return sum;
       if (p.partialPayments && p.partialPayments.length > 0) {
         return sum + p.partialPayments.reduce((s, pp) => pp.paymentMethod === "cash" ? s + pp.amount : s, 0);
       }
       return p.paymentMethod === "cash" ? sum + p.paidAmount : sum;
     }, 0);
     const gpayCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.monthKey !== filterMonthKey) return sum;
       if (p.partialPayments && p.partialPayments.length > 0) {
         return sum + p.partialPayments.reduce((s, pp) => pp.paymentMethod === "gpay" ? s + pp.amount : s, 0);
       }
       return p.paymentMethod === "gpay" ? sum + p.paidAmount : sum;
     }, 0);
     const zomatoCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.monthKey !== filterMonthKey) return sum;
       if (p.partialPayments && p.partialPayments.length > 0) {
         return sum + p.partialPayments.reduce((s, pp) => pp.paymentMethod === "zomato" ? s + pp.amount : s, 0);
       }
       return p.paymentMethod === "zomato" ? sum + p.paidAmount : sum;
     }, 0);
-    const totalCommitments = commitmentPayments.reduce((sum, p) => sum + p.paidAmount, 0);
+    const totalCommitments = commitmentPayments.reduce((sum, p) => p.monthKey === filterMonthKey ? sum + p.paidAmount : sum, 0);
 
     // 3. Personal Expenses
-    const cashPersonal = personalExpenses.reduce((sum, p) => (p.paymentMethod || "cash") === "cash" ? sum + p.amount : sum, 0);
-    const gpayPersonal = personalExpenses.reduce((sum, p) => (p.paymentMethod || "cash") === "gpay" ? sum + p.amount : sum, 0);
-    const zomatoPersonal = personalExpenses.reduce((sum, p) => (p.paymentMethod || "cash") === "zomato" ? sum + p.amount : sum, 0);
+    const cashPersonal = personalExpenses.reduce((sum, p) => isInSelectedMonth(p.date) && (p.paymentMethod || "cash") === "cash" ? sum + p.amount : sum, 0);
+    const gpayPersonal = personalExpenses.reduce((sum, p) => isInSelectedMonth(p.date) && (p.paymentMethod || "cash") === "gpay" ? sum + p.amount : sum, 0);
+    const zomatoPersonal = personalExpenses.reduce((sum, p) => isInSelectedMonth(p.date) && (p.paymentMethod || "cash") === "zomato" ? sum + p.amount : sum, 0);
 
     // 4. Debt Payments
-    const cashDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => (p.paymentMethod || "cash") === "cash" ? s + p.amount : s, 0), 0);
-    const gpayDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => (p.paymentMethod || "cash") === "gpay" ? s + p.amount : s, 0), 0);
-    const zomatoDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => (p.paymentMethod || "cash") === "zomato" ? s + p.amount : s, 0), 0);
+    const cashDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => isInSelectedMonth(p.date) && (p.paymentMethod || "cash") === "cash" ? s + p.amount : s, 0), 0);
+    const gpayDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => isInSelectedMonth(p.date) && (p.paymentMethod || "cash") === "gpay" ? s + p.amount : s, 0), 0);
+    const zomatoDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => isInSelectedMonth(p.date) && (p.paymentMethod || "cash") === "zomato" ? s + p.amount : s, 0), 0);
 
     // 5. Salary Payments
-    const cashSalary = salaryPayments.reduce((sum, p) => (p.paymentMethod || "cash") === "cash" ? sum + p.amount : sum, 0);
-    const gpaySalary = salaryPayments.reduce((sum, p) => (p.paymentMethod || "cash") === "gpay" ? sum + p.amount : sum, 0);
-    const zomatoSalary = salaryPayments.reduce((sum, p) => (p.paymentMethod || "cash") === "zomato" ? sum + p.amount : sum, 0);
-    const totalSalary = salaryPayments.reduce((sum, p) => sum + p.amount, 0);
+    const cashSalary = salaryPayments.reduce((sum, p) => p.monthKey === filterMonthKey && (p.paymentMethod || "cash") === "cash" ? sum + p.amount : sum, 0);
+    const gpaySalary = salaryPayments.reduce((sum, p) => p.monthKey === filterMonthKey && (p.paymentMethod || "cash") === "gpay" ? sum + p.amount : sum, 0);
+    const zomatoSalary = salaryPayments.reduce((sum, p) => p.monthKey === filterMonthKey && (p.paymentMethod || "cash") === "zomato" ? sum + p.amount : sum, 0);
+    const totalSalary = salaryPayments.reduce((sum, p) => p.monthKey === filterMonthKey ? sum + p.amount : sum, 0);
 
-    // Calculate symmetrical Cash/GPay/Zomato remaining balances
+    // Symmetrical Cash/GPay/Zomato remaining balances
     const cash = cashIncome - cashExpense - cashCommitments - cashPersonal - cashDebt - cashSalary;
     const gpay = gpayIncome - gpayExpense - gpayCommitments - gpayPersonal - gpayDebt - gpaySalary;
-    const zomato = zomatoIncome - zomatoExpense - zomatoCommitments - zomatoPersonal - zomatoDebt - zomatoSalary;
+    const zomatoVal = zomatoIncome - zomatoExpense - zomatoCommitments - zomatoPersonal - zomatoDebt - zomatoSalary;
+    const zomato = zomatoVal === 0 ? 0 : zomatoVal;
 
-    const shopExpenses = cashExpense + gpayExpense + zomatoExpense;
-    const totalSalesIncome = cashIncome + gpayIncome + zomatoIncome;
+    // Use: const totalExpenses = monthlyExpenses;
+    const totalExpenses = monthlyExpenses;
+
     const balance = cash + gpay + zomato;
 
-    // Total Expenses includes standard shop expenses + commitments + salary payments
-    const totalExpenses = shopExpenses + totalCommitments + totalSalary;
+    // Net Profit = Overall Sales − (Shop Expenses + Commitments + Salaries)
+    const netProfit = monthlyIncome - totalExpenses - totalCommitments - totalSalary;
 
-    // Net Profit = Overall Sales - (Shop Expenses + Commitments + Salaries)
-    const netProfit = totalSalesIncome - totalExpenses;
+    // Yesterday calculations restricted to the selected month and dates before today
+    const yestCashIncome = monthlyTxns.reduce(
+      (sum, t) =>
+        t.type === "income" && t.paymentMethod === "cash" && isBeforeToday(t.date)
+          ? sum + t.amount
+          : sum,
+      0
+    );
+    const yestGpayIncome = monthlyTxns.reduce(
+      (sum, t) =>
+        t.type === "income" && t.paymentMethod === "gpay" && isBeforeToday(t.date)
+          ? sum + t.amount
+          : sum,
+      0
+    );
+    const yestZomatoIncome = monthlyTxns.reduce(
+      (sum, t) =>
+        t.type === "income" && t.paymentMethod === "zomato" && isBeforeToday(t.date)
+          ? sum + t.amount
+          : sum,
+      0
+    );
 
-    // Yesterday closing balances calculation (dates strictly before today)
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const yestCashExpense = monthlyTxns.reduce(
+      (sum, t) =>
+        t.type === "expense" && t.paymentMethod === "cash" && isBeforeToday(t.date)
+          ? sum + t.amount
+          : sum,
+      0
+    );
+    const yestGpayExpense = monthlyTxns.reduce(
+      (sum, t) =>
+        t.type === "expense" && t.paymentMethod === "gpay" && isBeforeToday(t.date)
+          ? sum + t.amount
+          : sum,
+      0
+    );
+    const yestZomatoExpense = monthlyTxns.reduce(
+      (sum, t) =>
+        t.type === "expense" && t.paymentMethod === "zomato" && isBeforeToday(t.date)
+          ? sum + t.amount
+          : sum,
+      0
+    );
 
-    // Yesterday Incomes
-    const yestCashIncome = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "income" && t.paymentMethod === "cash" ? sum + t.amount : sum, 0);
-    const yestGpayIncome = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "income" && t.paymentMethod === "gpay" ? sum + t.amount : sum, 0);
-    const yestZomatoIncome = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "income" && t.paymentMethod === "zomato" ? sum + t.amount : sum, 0);
-
-    // Yesterday Expenses
-    const yestCashExpense = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "expense" && t.paymentMethod === "cash" ? sum + t.amount : sum, 0);
-    const yestGpayExpense = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "expense" && t.paymentMethod === "gpay" ? sum + t.amount : sum, 0);
-    const yestZomatoExpense = allTxns.reduce((sum, t) => new Date(t.date) < todayStart && t.type === "expense" && t.paymentMethod === "zomato" ? sum + t.amount : sum, 0);
-
-    // Yesterday Commitments
     const yestCashCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.monthKey !== filterMonthKey) return sum;
       if (p.partialPayments && p.partialPayments.length > 0) {
-        return sum + p.partialPayments.reduce((s, pp) => new Date(pp.paidDate) < todayStart && pp.paymentMethod === "cash" ? s + pp.amount : s, 0);
+        return (
+          sum +
+          p.partialPayments.reduce(
+            (s, pp) =>
+              pp.paymentMethod === "cash" && isBeforeToday(pp.paidDate) ? s + pp.amount : s,
+            0
+          )
+        );
       }
-      return new Date(p.paidDate) < todayStart && p.paymentMethod === "cash" ? sum + p.paidAmount : sum;
+      return p.paymentMethod === "cash" && isBeforeToday(p.paidDate) ? sum + p.paidAmount : sum;
     }, 0);
+
     const yestGpayCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.monthKey !== filterMonthKey) return sum;
       if (p.partialPayments && p.partialPayments.length > 0) {
-        return sum + p.partialPayments.reduce((s, pp) => new Date(pp.paidDate) < todayStart && pp.paymentMethod === "gpay" ? s + pp.amount : s, 0);
+        return (
+          sum +
+          p.partialPayments.reduce(
+            (s, pp) =>
+              pp.paymentMethod === "gpay" && isBeforeToday(pp.paidDate) ? s + pp.amount : s,
+            0
+          )
+        );
       }
-      return new Date(p.paidDate) < todayStart && p.paymentMethod === "gpay" ? sum + p.paidAmount : sum;
+      return p.paymentMethod === "gpay" && isBeforeToday(p.paidDate) ? sum + p.paidAmount : sum;
     }, 0);
+
     const yestZomatoCommitments = commitmentPayments.reduce((sum, p) => {
+      if (p.monthKey !== filterMonthKey) return sum;
       if (p.partialPayments && p.partialPayments.length > 0) {
-        return sum + p.partialPayments.reduce((s, pp) => new Date(pp.paidDate) < todayStart && pp.paymentMethod === "zomato" ? s + pp.amount : s, 0);
+        return (
+          sum +
+          p.partialPayments.reduce(
+            (s, pp) =>
+              pp.paymentMethod === "zomato" && isBeforeToday(pp.paidDate) ? s + pp.amount : s,
+            0
+          )
+        );
       }
-      return new Date(p.paidDate) < todayStart && p.paymentMethod === "zomato" ? sum + p.paidAmount : sum;
+      return p.paymentMethod === "zomato" && isBeforeToday(p.paidDate) ? sum + p.paidAmount : sum;
     }, 0);
 
-    // Yesterday Personal Expenses
-    const yestCashPersonal = personalExpenses.reduce((sum, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "cash" ? sum + p.amount : sum, 0);
-    const yestGpayPersonal = personalExpenses.reduce((sum, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "gpay" ? sum + p.amount : sum, 0);
-    const yestZomatoPersonal = personalExpenses.reduce((sum, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "zomato" ? sum + p.amount : sum, 0);
+    const yestCashPersonal = personalExpenses.reduce(
+      (sum, p) =>
+        isInSelectedMonth(p.date) && (p.paymentMethod || "cash") === "cash" && isBeforeToday(p.date)
+          ? sum + p.amount
+          : sum,
+      0
+    );
+    const yestGpayPersonal = personalExpenses.reduce(
+      (sum, p) =>
+        isInSelectedMonth(p.date) && (p.paymentMethod || "cash") === "gpay" && isBeforeToday(p.date)
+          ? sum + p.amount
+          : sum,
+      0
+    );
+    const yestZomatoPersonal = personalExpenses.reduce(
+      (sum, p) =>
+        isInSelectedMonth(p.date) &&
+          (p.paymentMethod || "cash") === "zomato" &&
+          isBeforeToday(p.date)
+          ? sum + p.amount
+          : sum,
+      0
+    );
 
-    // Yesterday Debt Payments
-    const yestCashDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "cash" ? s + p.amount : s, 0), 0);
-    const yestGpayDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "gpay" ? s + p.amount : s, 0), 0);
-    const yestZomatoDebt = debts.reduce((sum, d) => sum + (d.payments || []).reduce((s, p) => new Date(p.date) < todayStart && (p.paymentMethod || "cash") === "zomato" ? s + p.amount : s, 0), 0);
+    const yestCashDebt = debts.reduce(
+      (sum, d) =>
+        sum +
+        (d.payments || []).reduce(
+          (s, p) =>
+            isInSelectedMonth(p.date) &&
+              (p.paymentMethod || "cash") === "cash" &&
+              isBeforeToday(p.date)
+              ? s + p.amount
+              : s,
+          0
+        ),
+      0
+    );
+    const yestGpayDebt = debts.reduce(
+      (sum, d) =>
+        sum +
+        (d.payments || []).reduce(
+          (s, p) =>
+            isInSelectedMonth(p.date) &&
+              (p.paymentMethod || "cash") === "gpay" &&
+              isBeforeToday(p.date)
+              ? s + p.amount
+              : s,
+          0
+        ),
+      0
+    );
+    const yestZomatoDebt = debts.reduce(
+      (sum, d) =>
+        sum +
+        (d.payments || []).reduce(
+          (s, p) =>
+            isInSelectedMonth(p.date) &&
+              (p.paymentMethod || "cash") === "zomato" &&
+              isBeforeToday(p.date)
+              ? s + p.amount
+              : s,
+          0
+        ),
+      0
+    );
 
-    // Yesterday Salary Payments
-    const yestCashSalary = salaryPayments.reduce((sum, p) => new Date(p.paidDate) < todayStart && (p.paymentMethod || "cash") === "cash" ? sum + p.amount : sum, 0);
-    const yestGpaySalary = salaryPayments.reduce((sum, p) => new Date(p.paidDate) < todayStart && (p.paymentMethod || "cash") === "gpay" ? sum + p.amount : sum, 0);
-    const yestZomatoSalary = salaryPayments.reduce((sum, p) => new Date(p.paidDate) < todayStart && (p.paymentMethod || "cash") === "zomato" ? sum + p.amount : sum, 0);
+    const yestCashSalary = salaryPayments.reduce(
+      (sum, p) =>
+        p.monthKey === filterMonthKey &&
+          (p.paymentMethod || "cash") === "cash" &&
+          isBeforeToday(p.paidDate)
+          ? sum + p.amount
+          : sum,
+      0
+    );
+    const yestGpaySalary = salaryPayments.reduce(
+      (sum, p) =>
+        p.monthKey === filterMonthKey &&
+          (p.paymentMethod || "cash") === "gpay" &&
+          isBeforeToday(p.paidDate)
+          ? sum + p.amount
+          : sum,
+      0
+    );
+    const yestZomatoSalary = salaryPayments.reduce(
+      (sum, p) =>
+        p.monthKey === filterMonthKey &&
+          (p.paymentMethod || "cash") === "zomato" &&
+          isBeforeToday(p.paidDate)
+          ? sum + p.amount
+          : sum,
+      0
+    );
 
-    const yesterdayCash = yestCashIncome - yestCashExpense - yestCashCommitments - yestCashPersonal - yestCashDebt - yestCashSalary;
-    const yesterdayGpay = yestGpayIncome - yestGpayExpense - yestGpayCommitments - yestGpayPersonal - yestGpayDebt - yestGpaySalary;
-    const yesterdayZomato = yestZomatoIncome - yestZomatoExpense - yestZomatoCommitments - yestZomatoPersonal - yestZomatoDebt - yestZomatoSalary;
+    const yesterdayCash =
+      yestCashIncome -
+      yestCashExpense -
+      yestCashCommitments -
+      yestCashPersonal -
+      yestCashDebt -
+      yestCashSalary;
+    const yesterdayGpay =
+      yestGpayIncome -
+      yestGpayExpense -
+      yestGpayCommitments -
+      yestGpayPersonal -
+      yestGpayDebt -
+      yestGpaySalary;
+    const yesterdayZomatoVal =
+      yestZomatoIncome -
+      yestZomatoExpense -
+      yestZomatoCommitments -
+      yestZomatoPersonal -
+      yestZomatoDebt -
+      yestZomatoSalary;
+    const yesterdayZomato = yesterdayZomatoVal === 0 ? 0 : yesterdayZomatoVal;
 
     return {
       cash,
@@ -211,18 +453,26 @@ export function DashboardView({
       expenses: totalExpenses,
       balance,
       netProfit,
-      incomeTotal: totalSalesIncome,
+      incomeTotal: monthlyIncome,
     };
-  }, [allTxns, personalExpenses, debts, salaryPayments, commitmentPayments]);
+  }, [allTxns, personalExpenses, debts, salaryPayments, commitmentPayments, purchases, filterMonthKey]);
 
-  // Shop-wise breakdown
+  // Shop-wise breakdown for selected month
   const shopPerformance = useMemo(() => {
+    const isInSelectedMonth = (d: any) => {
+      if (!d) return false;
+      const dateObj = d instanceof Date ? d : new Date(d);
+      return mkFromDate(dateObj) === filterMonthKey;
+    };
+
     return (Object.keys(SHOPS) as ShopId[]).map((sid) => {
       let income = 0;
       let expense = 0;
       (transactions[sid] || []).forEach((t) => {
-        if (t.type === "income") income += t.amount;
-        else expense += t.amount;
+        if (isInSelectedMonth(t.date)) {
+          if (t.type === "income") income += t.amount;
+          else expense += t.amount;
+        }
       });
       return {
         name: SHOPS[sid].name.split("—")[1]?.trim() || SHOPS[sid].name,
@@ -234,7 +484,7 @@ export function DashboardView({
         shopId: sid,
       };
     });
-  }, [transactions]);
+  }, [transactions, filterMonthKey]);
 
   // Payment method breakdown for Pie Chart
   const paymentChartData = useMemo(() => {
@@ -245,7 +495,14 @@ export function DashboardView({
     ].filter((d) => d.value > 0);
   }, [stats]);
 
-  const recentList = useMemo(() => allTxns.slice(0, 8), [allTxns]);
+  const recentList = useMemo(() => {
+    const isInSelectedMonth = (d: any) => {
+      if (!d) return false;
+      const dateObj = d instanceof Date ? d : new Date(d);
+      return mkFromDate(dateObj) === filterMonthKey;
+    };
+    return allTxns.filter((t) => isInSelectedMonth(t.date)).slice(0, 8);
+  }, [allTxns, filterMonthKey]);
 
   return (
     <div className="space-y-6">
@@ -288,6 +545,36 @@ export function DashboardView({
             💜 Add Quick Personal
           </button>
         </div>
+      </div>
+
+      {/* Month Switcher */}
+      <div className="flex items-center justify-between bg-card rounded-2xl border border-border px-4 py-3 shadow-sm max-w-xs mx-auto">
+        <button
+          onClick={() => shiftMonth(-1)}
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          title="Previous month"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <div className="text-center">
+          <p className="text-sm font-bold text-foreground">{filterMonthLabel}</p>
+          {!isCurrentMonth && (
+            <button
+              onClick={() => setFilterMonthKey(currentMonthKey)}
+              className="text-[10px] text-primary font-semibold hover:underline mt-0.5"
+            >
+              Back to current month
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => shiftMonth(1)}
+          disabled={isCurrentMonth}
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Next month"
+        >
+          <ChevronRight size={16} />
+        </button>
       </div>
 
       {/* KPI Cards — order: Cash, GPay, Zomato, Expenses, Net Profit */}
@@ -392,16 +679,14 @@ export function DashboardView({
         <div className="bg-card rounded-2xl p-5 border border-border shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden">
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Net Profit</span>
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-              stats.netProfit >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-            }`}>
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${stats.netProfit >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+              }`}>
               <TrendingUp size={15} />
             </div>
           </div>
           <div>
-            <p className={`text-2xl font-black font-[DM_Mono,monospace] ${
-              stats.netProfit >= 0 ? "text-emerald-700" : "text-red-600"
-            }`}>
+            <p className={`text-2xl font-black font-[DM_Mono,monospace] ${stats.netProfit >= 0 ? "text-emerald-700" : "text-red-600"
+              }`}>
               {fmt(stats.netProfit)}
             </p>
             <p className="text-[10px] text-muted-foreground mt-1">Overall Sales − (Shop Expenses + Commitments + Salaries)</p>
@@ -568,9 +853,8 @@ export function DashboardView({
                 </div>
                 <div className="flex items-center gap-3">
                   <span
-                    className={`font-black font-[DM_Mono,monospace] text-right ${
-                      t.type === "income" ? "text-green-700" : "text-red-600"
-                    }`}
+                    className={`font-black font-[DM_Mono,monospace] text-right ${t.type === "income" ? "text-green-700" : "text-red-600"
+                      }`}
                   >
                     {t.type === "income" ? "+" : "−"}
                     {fmt(t.amount)}

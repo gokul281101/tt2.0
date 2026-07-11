@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -29,9 +29,17 @@ interface ReportsViewProps {
   debts: Debt[];
   salaryReport: { staffName: string; calculatedSalary: number }[];
   personalExpenses: PersonalExpense[];
+  selectedMonth: string;
 }
 
-export function ReportsView({ transactions, purchases, debts, salaryReport, personalExpenses }: ReportsViewProps) {
+export function ReportsView({
+  transactions,
+  purchases,
+  debts,
+  salaryReport,
+  personalExpenses,
+  selectedMonth,
+}: ReportsViewProps) {
   const [period, setPeriod] = useState<"30d" | "90d" | "all">("30d");
 
   // PDF report states
@@ -39,6 +47,24 @@ export function ReportsView({ transactions, purchases, debts, salaryReport, pers
     new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
   );
   const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
+
+  useEffect(() => {
+    if (selectedMonth) {
+      const [year, month] = selectedMonth.split("-").map(Number);
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0);
+
+      const toLocalDateString = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      };
+
+      setStartDate(toLocalDateString(start));
+      setEndDate(toLocalDateString(end));
+    }
+  }, [selectedMonth]);
   const [reportType, setReportType] = useState<"sales" | "expenses" | "purchases" | "debts" | "attendance" | "summary" | "personal">("summary");
 
   const handleDownloadPDF = () => {

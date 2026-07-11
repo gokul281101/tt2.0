@@ -7,9 +7,10 @@ interface PersonalViewProps {
   expenses: PersonalExpense[];
   onAdd: (exp: Omit<PersonalExpense, "id">) => void;
   onDelete: (id: string) => void;
+  selectedMonth: string;
 }
 
-export function PersonalView({ expenses, onAdd, onDelete }: PersonalViewProps) {
+export function PersonalView({ expenses, onAdd, onDelete, selectedMonth }: PersonalViewProps) {
   const [showForm, setShowForm] = useState(false);
   const [formAmount, setFormAmount] = useState("");
   const [formCategory, setFormCategory] = useState<"Home" | "Personal Use">("Home");
@@ -25,7 +26,8 @@ export function PersonalView({ expenses, onAdd, onDelete }: PersonalViewProps) {
     return expenses.filter((e) => {
       const d = new Date(e.date);
       if (filterPeriod === "this_month") {
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        const [y, m] = selectedMonth.split("-").map(Number);
+        return d.getMonth() === m - 1 && d.getFullYear() === y;
       }
       if (filterPeriod === "30d") {
         const cutoff = new Date();
@@ -39,7 +41,7 @@ export function PersonalView({ expenses, onAdd, onDelete }: PersonalViewProps) {
       }
       return true; // "all"
     });
-  }, [expenses, filterPeriod]);
+  }, [expenses, filterPeriod, selectedMonth]);
 
   // Combined totals calculations based on filtered expenses
   const totals = useMemo(() => {
@@ -56,14 +58,14 @@ export function PersonalView({ expenses, onAdd, onDelete }: PersonalViewProps) {
 
   // Static current month summary independent of period filters
   const currentMonthSummary = useMemo(() => {
-    const now = new Date();
+    const [y, m] = selectedMonth.split("-").map(Number);
     return expenses
       .filter((e) => {
         const d = new Date(e.date);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        return d.getMonth() === m - 1 && d.getFullYear() === y;
       })
       .reduce((sum, e) => sum + e.amount, 0);
-  }, [expenses]);
+  }, [expenses, selectedMonth]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,8 +90,9 @@ export function PersonalView({ expenses, onAdd, onDelete }: PersonalViewProps) {
     if (filterPeriod === "all") return "All Time";
     if (filterPeriod === "90d") return "90 Days";
     if (filterPeriod === "30d") return "30 Days";
-    return "This Month";
-  }, [filterPeriod]);
+    const [y, m] = selectedMonth.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  }, [filterPeriod, selectedMonth]);
 
   return (
     <div className="space-y-6">
@@ -183,7 +186,12 @@ export function PersonalView({ expenses, onAdd, onDelete }: PersonalViewProps) {
             <Calendar size={18} />
           </div>
           <div>
-            <p className="text-[10px] text-muted-foreground font-bold uppercase">This Month's Summary</p>
+            <p className="text-[10px] text-muted-foreground font-bold uppercase">
+              {(() => {
+                const [y, m] = selectedMonth.split("-").map(Number);
+                return new Date(y, m - 1, 1).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+              })()}'s Summary
+            </p>
             <p className="text-xl font-black text-amber-800 font-[DM_Mono,monospace]">
               {fmt(currentMonthSummary)}
             </p>
